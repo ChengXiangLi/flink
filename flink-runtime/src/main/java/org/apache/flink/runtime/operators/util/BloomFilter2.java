@@ -20,7 +20,6 @@ package org.apache.flink.runtime.operators.util;
 
 import com.google.common.base.Preconditions;
 import org.apache.flink.core.memory.MemorySegment;
-import org.apache.flink.util.Murmur3;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
