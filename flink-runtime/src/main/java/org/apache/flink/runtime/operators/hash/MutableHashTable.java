@@ -153,8 +153,13 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 	static final int NUM_INTRA_BUCKET_BITS = 7;
 	
 	static final int HASH_BUCKET_SIZE = 0x1 << NUM_INTRA_BUCKET_BITS;
-	
-	static final int BUCKET_HEADER_LENGTH = 16;
+
+	static final int BUCKET_HEADER_FIXED_PART_LENGTH = 16;
+
+	//TODO identify the length with fault tolerance.
+	static final int BITMAP_LENGTH = (HASH_BUCKET_SIZE / RECORD_OVERHEAD_BYTES) / 8;
+
+	static final int BUCKET_HEADER_LENGTH = BUCKET_HEADER_FIXED_PART_LENGTH + BITMAP_LENGTH;
 	
 	private static final int NUM_ENTRIES_PER_BUCKET = (HASH_BUCKET_SIZE - BUCKET_HEADER_LENGTH) / RECORD_OVERHEAD_BYTES;
 	
@@ -780,7 +785,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 				final int bucketInSegmentPos = (posHashCode & this.bucketsPerSegmentMask) << NUM_INTRA_BUCKET_BITS;
 				final MemorySegment bucket = this.buckets[bucketArrayPos];
 				
-				insertBucketEntry(newPart, bucket, bucketInSegmentPos, hashCode, pointer);
+				insertBucketEntry(record, newPart, bucket, bucketInSegmentPos, hashCode, pointer);
 			}
 		}
 		else {
@@ -854,7 +859,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 		long pointer = p.insertIntoBuildBuffer(record);
 		if (pointer != -1) {
 			// record was inserted into an in-memory partition. a pointer must be inserted into the buckets
-			insertBucketEntry(p, bucket, bucketInSegmentPos, hashCode, pointer);
+			insertBucketEntry(record, p, bucket, bucketInSegmentPos, hashCode, pointer);
 		}
 	}
 	
@@ -866,7 +871,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 	 * @param pointer
 	 * @throws IOException
 	 */
-	final void insertBucketEntry(final HashPartition<BT, PT> p, final MemorySegment bucket, 
+	final void insertBucketEntry(final BT record, final HashPartition<BT, PT> p, final MemorySegment bucket,
 			final int bucketInSegmentPos, final int hashCode, final long pointer)
 	throws IOException
 	{
