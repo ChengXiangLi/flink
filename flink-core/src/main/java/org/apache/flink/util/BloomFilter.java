@@ -16,26 +16,25 @@
  * limitations under the License.
  */
 
-package org.apache.flink.runtime.operators.util;
+package org.apache.flink.util;
 
 import com.google.common.base.Preconditions;
 import org.apache.flink.core.memory.MemorySegment;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
-public class BloomFilter2 {
+public class BloomFilter {
 
-	public static final double DEFAULT_FPP = 0.05;
 	protected BitSet bitSet;
 	protected int numBits;
 	protected int numHashFunctions;
 
-	public BloomFilter2(MemorySegment memeorySegment, int offset, int numBits, long expectedEntries, double fpp) {
+	public BloomFilter(MemorySegment memeorySegment, int offset, int numBits, long expectedEntries) {
 		checkArgument(expectedEntries > 0, "expectedEntries should be > 0");
-		checkArgument(fpp > 0.0 && fpp < 1.0, "False positive probability should be > 0.0 & < 1.0");
+		checkArgument(numBits << 29 == 0, "numBits should be multiple of Byte size(8).");
 		this.numBits = numBits;
 		this.numHashFunctions = optimalNumOfHashFunctions(expectedEntries, numBits);
-		this.bitSet = new BitSet(memeorySegment, offset, numBits);
+		this.bitSet = new BitSet(memeorySegment, offset, numBits / 8);
 	}
 
 	static int optimalNumOfHashFunctions(long n, long m) {
@@ -43,7 +42,10 @@ public class BloomFilter2 {
 	}
 
 	public static int optimalNumOfBits(long expectedEntries, double fpp) {
-		return (int) (-expectedEntries * Math.log(fpp) / (Math.log(2) * Math.log(2)));
+		int bitsNum = (int) (-expectedEntries * Math.log(fpp) / (Math.log(2) * Math.log(2)));
+		// make 'bitsNum' multiple of 64
+		bitsNum = bitsNum + (Long.SIZE - (bitsNum % Long.SIZE));
+		return bitsNum;
 	}
 
 	public void add(byte[] val) {
@@ -88,8 +90,16 @@ public class BloomFilter2 {
 		}
 	}
 
+	public void addInt(int val) {
+		addHash(getIntHash(val));
+	}
+
 	public void addLong(long val) {
 		addHash(getLongHash(val));
+	}
+
+	public void addFloat(float val) {
+		addInt(Float.floatToIntBits(val));
 	}
 
 	public void addDouble(double val) {
@@ -138,6 +148,10 @@ public class BloomFilter2 {
 		return testHash(getLongHash(val));
 	}
 
+	public boolean testInt(int val) {
+		return testHash(getIntHash(val));
+	}
+
 	// Thomas Wang's integer hash function
 	// http://web.archive.org/web/20071223173210/http://www.concentric.net/~Ttwang/tech/inthash.htm
 	private long getLongHash(long key) {
@@ -151,8 +165,16 @@ public class BloomFilter2 {
 		return key;
 	}
 
+	private long getIntHash(int key) {
+		return getLongHash((long) key);
+	}
+
 	public boolean testDouble(double val) {
 		return testLong(Double.doubleToLongBits(val));
+	}
+
+	public boolean testFloat(float val) {
+		return testInt(Float.floatToIntBits(val));
 	}
 
 	public long sizeInBytes() {
@@ -169,7 +191,12 @@ public class BloomFilter2 {
 
 	@Override
 	public String toString() {
-		return "m: " + numBits + " k: " + numHashFunctions;
+		StringBuilder output = new StringBuilder();
+		output.append("BloomFilter:\n");
+		output.append("\tbits number:").append(numBits).append("\n");
+		output.append("\thash function number:").append(numHashFunctions).append("\n");
+		output.append(bitSet);
+		return output.toString();
 	}
 
 	public void reset() {
@@ -182,13 +209,15 @@ public class BloomFilter2 {
 	 */
 	public class BitSet {
 		private final MemorySegment memorySegment;
+		// MemorySegment byte array offset.
 		private final int offset;
+		// MemorySegment byte size.
 		private final int length;
 		private final int LONG_POSITION_MASK = 0xffffffc0;
 
 		public BitSet(MemorySegment memorySegment, int offset, int length) {
 			Preconditions.checkArgument(length > 0, "bits size should be greater than 0.");
-			Preconditions.checkArgument(length << 26 == 0, "bits size should be integral multiple of long size(64).");
+			Preconditions.checkArgument(length << 29 == 0, "bytes size should be integral multiple of long size(64).");
 			this.memorySegment = memorySegment;
 			this.offset = offset;
 			this.length = length;
@@ -200,10 +229,16 @@ public class BloomFilter2 {
 		 * @param index - position
 		 */
 		public void set(int index) {
-			int longIndex = index & LONG_POSITION_MASK;
-			long current = memorySegment.getLong(offset + longIndex);
-			current |= (1L << index);
-			memorySegment.putLong(offset + longIndex, current);
+			int longIndex = (index & LONG_POSITION_MASK) >>> 3;
+			try {
+				long current = memorySegment.getLong(offset + longIndex);
+				current |= (1L << index);
+				memorySegment.putLong(offset + longIndex, current);
+			} catch (IndexOutOfBoundsException e) {
+				System.out.println(String.format("MemorySegment size[%d], index[%d], longIndex[%d], offset[%d]", memorySegment.size(),
+					index, longIndex, offset));
+				throw e;
+			}
 		}
 
 		/**
@@ -213,16 +248,22 @@ public class BloomFilter2 {
 		 * @return - value at the bit position
 		 */
 		public boolean get(int index) {
-			int longIndex = index & LONG_POSITION_MASK;
-			long current = memorySegment.getLong(offset + longIndex);
-			return (current & (1L << index)) != 0;
+			int longIndex = (index & LONG_POSITION_MASK) >>> 3;
+			try {
+				long current = memorySegment.getLong(offset + longIndex);
+				return (current & (1L << index)) != 0;
+			} catch (IndexOutOfBoundsException e) {
+				System.out.println(String.format("MemorySegment size[%d], index[%d], longIndex[%d], offset[%d]", memorySegment.size(),
+					index, longIndex, offset));
+				throw e;
+			}
 		}
 
 		/**
 		 * Number of bits
 		 */
 		public int bitSize() {
-			return length;
+			return length << 3;
 		}
 
 		/**
@@ -230,9 +271,19 @@ public class BloomFilter2 {
 		 */
 		public void clear() {
 			long zeroValue = 0L;
-			for (int i = 0; i < (length / Long.SIZE); i++) {
-				memorySegment.putLong(offset + i * Long.SIZE, zeroValue);
+			for (int i = 0; i < (length / 8); i++) {
+				memorySegment.putLong(offset + i * 8, zeroValue);
 			}
+		}
+
+		@Override
+		public String toString() {
+			StringBuilder output = new StringBuilder();
+			output.append("BitSet:\n");
+			output.append("\tMemorySegment:").append(memorySegment.size()).append("\n");
+			output.append("\tOffset:").append(offset).append("\n");
+			output.append("\tLength:").append(length).append("\n");
+			return output.toString();
 		}
 	}
 }

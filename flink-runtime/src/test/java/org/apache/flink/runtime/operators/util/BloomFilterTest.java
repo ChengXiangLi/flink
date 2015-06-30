@@ -19,74 +19,178 @@
 package org.apache.flink.runtime.operators.util;
 
 import org.apache.flink.core.memory.MemorySegment;
+import org.apache.flink.util.BloomFilter;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class BloomFilterTest {
 
-    private BloomFilter2 bloomFilter;
-    private static final int INPUT_SIZE = 1000;
-    private static final double FALSE_POSITIVE_PROBABILITY = 0.05;
+	private static BloomFilter bloomFilter;
+	private static final int INPUT_SIZE = 1024;
+	private static final double FALSE_POSITIVE_PROBABILITY = 0.05;
 
-    @BeforeClass
-    public void init() {
-        int bitsSize = BloomFilter2.optimalNumOfBits(INPUT_SIZE, FALSE_POSITIVE_PROBABILITY);
-        MemorySegment memorySegment = new MemorySegment(new byte[bitsSize]);
-        bloomFilter = new BloomFilter2(memorySegment, 0, bitsSize, INPUT_SIZE, FALSE_POSITIVE_PROBABILITY);
-    }
+	@BeforeClass
+	public static void init() {
+		int bitsSize = BloomFilter.optimalNumOfBits(INPUT_SIZE, FALSE_POSITIVE_PROBABILITY);
+		MemorySegment memorySegment = new MemorySegment(new byte[bitsSize/8]);
+		bloomFilter = new BloomFilter(memorySegment, 0, bitsSize, INPUT_SIZE);
+		System.out.println(String.format("BloomFilter bitSize[%d], hashFunctionNumber[%d]", bitsSize, bloomFilter.getNumHashFunctions()));
+	}
 
-    @Test
-    public void verifyIntInput() {
-        bloomFilter.reset();
-        for (int i = 0; i < INPUT_SIZE; i++) {
-            bloomFilter.addLong((long) i);
-        }
+	@Test
+	public void verifyIntInput() {
+		bloomFilter.reset();
+		for (int i = 0; i < INPUT_SIZE; i++) {
+			bloomFilter.addInt(i);
+		}
 
-        for (int i = 0; i < INPUT_SIZE; i++) {
-            Assert.assertTrue(bloomFilter.testLong((long) i));
-        }
-    }
+		for (int i = 0; i < INPUT_SIZE; i++) {
+			Assert.assertTrue(bloomFilter.testInt(i));
+		}
+	}
 
-    @Test
-    public void verifyLongInput() {
-        bloomFilter.reset();
-        for (long i = 0; i < INPUT_SIZE; i++) {
-            bloomFilter.addLong(i);
-        }
+	@Test
+	public void verifyLongInput() {
+		bloomFilter.reset();
+		for (long i = 0; i < INPUT_SIZE; i++) {
+			bloomFilter.addLong(i);
+		}
 
-        for (long i = 0; i < INPUT_SIZE; i++) {
-            Assert.assertTrue(bloomFilter.testLong(i));
-        }
-    }
+		for (long i = 0; i < INPUT_SIZE; i++) {
+			Assert.assertTrue(bloomFilter.testLong(i));
+		}
+	}
 
-    @Test
-    public void verifyStringInput() {
-        bloomFilter.reset();
-        for (int i = 0; i < INPUT_SIZE; i++) {
-            bloomFilter.addString(Integer.toString(i));
-        }
+	@Test
+	public void verifyFloatInput() {
+		bloomFilter.reset();
+		final float additional = 0.1f;
+		for (int i = 0; i < INPUT_SIZE; i++) {
+			bloomFilter.addFloat(i + additional);
+		}
 
-        for (int i = 0; i < INPUT_SIZE; i++) {
-            Assert.assertTrue(bloomFilter.testString(Integer.toString(i)));
-        }
-    }
+		for (int i = 0; i < INPUT_SIZE; i++) {
+			Assert.assertTrue(bloomFilter.testFloat(i + additional));
+		}
+	}
 
-    @Test
-    public void verifyFalsePositiveProbability() {
-        bloomFilter.reset();
-        for (int i = 0; i < INPUT_SIZE; i++) {
-            bloomFilter.addLong((long) i);
-        }
+	@Test
+	public void verifyDoubleInput() {
+		bloomFilter.reset();
+		final double additional = 0.1d;
+		for (long i = 0; i < INPUT_SIZE; i++) {
+			bloomFilter.addDouble(i + additional);
+		}
 
-        int count = 0;
-        for (int i = INPUT_SIZE; i < INPUT_SIZE + INPUT_SIZE; i++) {
-            if (bloomFilter.testLong((long) i)) {
-                count++;
-            }
-        }
-        double actualFPP = count / INPUT_SIZE;
-        Assert.assertTrue(String.format("Expect FPP %f, but get %f.", FALSE_POSITIVE_PROBABILITY, actualFPP),
-                FALSE_POSITIVE_PROBABILITY > actualFPP);
-    }
+		for (long i = 0; i < INPUT_SIZE; i++) {
+			Assert.assertTrue(bloomFilter.testDouble(i + additional));
+		}
+	}
+
+	@Test
+	public void verifyStringInput() {
+		bloomFilter.reset();
+		for (int i = 0; i < INPUT_SIZE; i++) {
+			bloomFilter.addString(Integer.toHexString(i));
+		}
+
+		for (int i = 0; i < INPUT_SIZE; i++) {
+			Assert.assertTrue(bloomFilter.testString(Integer.toHexString(i)));
+		}
+	}
+
+	@Test
+	public void verifyIntFalsePositiveProbability() {
+		bloomFilter.reset();
+		for (int i = 0; i < INPUT_SIZE; i++) {
+			bloomFilter.addInt(i);
+		}
+
+		int count = 0;
+		for (int i = INPUT_SIZE; i < INPUT_SIZE + INPUT_SIZE; i++) {
+			if (bloomFilter.testInt(i)) {
+				count++;
+			}
+		}
+		double actualFPP = (double)count / INPUT_SIZE;
+		// FALSE_POSITIVE_PROBABILITY is not an accurate limit, we can accept the actual false positive probability
+		// if it less than 2 * FALSE_POSITIVE_PROBABILITY.
+		String message = String.format("Expect FPP less than %f, but get %f.", FALSE_POSITIVE_PROBABILITY, actualFPP);
+		Assert.assertTrue(message, 2 * FALSE_POSITIVE_PROBABILITY > actualFPP);
+	}
+
+	@Test
+	public void verifyLongFalsePositiveProbability() {
+		bloomFilter.reset();
+		for (long i = 0; i < INPUT_SIZE; i++) {
+			bloomFilter.addLong(i);
+		}
+
+		int count = 0;
+		for (long i = INPUT_SIZE; i < INPUT_SIZE + INPUT_SIZE; i++) {
+			if (bloomFilter.testLong(i)) {
+				count++;
+			}
+		}
+		double actualFPP = (double)count / INPUT_SIZE;
+		String message = String.format("Expect FPP less than %f, but get %f.", FALSE_POSITIVE_PROBABILITY, actualFPP);
+		Assert.assertTrue(message, 2 * FALSE_POSITIVE_PROBABILITY > actualFPP);
+	}
+
+	@Test
+	public void verifyFloatFalsePositiveProbability() {
+		bloomFilter.reset();
+		final float additional = 0.1f;
+		for (int i = 0; i < INPUT_SIZE; i++) {
+			bloomFilter.addFloat(i + additional);
+		}
+
+		int count = 0;
+		for (int i = INPUT_SIZE; i < INPUT_SIZE + INPUT_SIZE; i++) {
+			if (bloomFilter.testFloat(i + additional)) {
+				count++;
+			}
+		}
+		double actualFPP = (double)count / INPUT_SIZE;
+		String message = String.format("Expect FPP less than %f, but get %f.", FALSE_POSITIVE_PROBABILITY, actualFPP);
+		Assert.assertTrue(message, 2 * FALSE_POSITIVE_PROBABILITY > actualFPP);
+	}
+
+	@Test
+	public void verifyDoubleFalsePositiveProbability() {
+		bloomFilter.reset();
+		final double additional = 0.1d;
+		for (int i = 0; i < INPUT_SIZE; i++) {
+			bloomFilter.addDouble(i + additional);
+		}
+
+		int count = 0;
+		for (int i = INPUT_SIZE; i < INPUT_SIZE + INPUT_SIZE; i++) {
+			if (bloomFilter.testDouble(i + additional)) {
+				count++;
+			}
+		}
+		double actualFPP = (double)count / INPUT_SIZE;
+		String message = String.format("Expect FPP less than %f, but get %f.", FALSE_POSITIVE_PROBABILITY, actualFPP);
+		Assert.assertTrue(message, 2 * FALSE_POSITIVE_PROBABILITY > actualFPP);
+	}
+
+	@Test
+	public void verifyStringFalsePositiveProbability() {
+		bloomFilter.reset();
+		for (int i = 0; i < INPUT_SIZE; i++) {
+			bloomFilter.addString(Integer.toHexString(i));
+		}
+
+		int count = 0;
+		for (int i = INPUT_SIZE; i < INPUT_SIZE; i++) {
+			if (bloomFilter.testString(Integer.toHexString(i))) {
+				count++;
+			}
+		}
+		double actualFPP = (double)count / INPUT_SIZE;
+		String message = String.format("Expect FPP less than %f, but get %f.", FALSE_POSITIVE_PROBABILITY, actualFPP);
+		Assert.assertTrue(message, 2 * FALSE_POSITIVE_PROBABILITY > actualFPP);
+	}
 }

@@ -24,6 +24,7 @@ import java.io.Serializable;
 import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataOutputView;
 import org.apache.flink.core.memory.MemorySegment;
+import org.apache.flink.util.BloomFilter;
 
 /**
  * This interface describes the methods that are required for a data type to be handled by the pact
@@ -305,5 +306,24 @@ public abstract class TypeComparator<T> implements Serializable {
 	@SuppressWarnings("rawtypes")
 	public int compareAgainstReference(Comparable[] keys) {
 		throw new UnsupportedOperationException("Workaround hack.");
+	}
+
+	/**
+	 * Build the bloom filter with hashcode of input record.
+	 * @param record
+	 * @param bloomFilter
+	 */
+	public void addRecordToBloomFilter(T record, BloomFilter bloomFilter) {
+		bloomFilter.addInt(hash(record));
+	}
+
+	/**
+	 *
+	 * @param record
+	 * @param bloomFilter
+	 * @return Whether input record exists in bloom filter(with false positive probability).
+	 */
+	public boolean testRecordInBloomFilter(T record, BloomFilter bloomFilter) {
+		return bloomFilter.testInt(hash(record));
 	}
 }

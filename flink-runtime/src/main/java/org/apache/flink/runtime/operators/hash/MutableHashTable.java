@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.apache.flink.util.BloomFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.flink.api.common.typeutils.TypeComparator;
@@ -157,9 +158,9 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 	static final int BUCKET_HEADER_LENGTH = 16;
 
 	private static final int NUM_ENTRIES_PER_BUCKET = (HASH_BUCKET_SIZE - BUCKET_HEADER_LENGTH) / RECORD_OVERHEAD_BYTES;
-	
+
 	private static final int BUCKET_POINTER_START_OFFSET = BUCKET_HEADER_LENGTH + (NUM_ENTRIES_PER_BUCKET * HASH_CODE_LEN);
-	
+
 	// ------------------------------ Bucket Header Fields ------------------------------
 	
 	/**
@@ -319,6 +320,11 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 	 * used, when not all buckets that would fit into the last segment are actually used.
 	 */
 	protected int numBuckets;
+
+	/**
+	 * The array of bloom filters that could be used to filter during probe phase.
+	 */
+	protected BloomFilter[] bloomFilters;
 	
 	/**
 	 * The number of buffers in the write behind queue that are actually not write behind buffers,
@@ -463,15 +469,19 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 			// get the basic characteristics of the bucket
 			final int partitionNumber = bucket.get(bucketInSegmentOffset + HEADER_PARTITION_OFFSET);
 			final HashPartition<BT, PT> p = this.partitionsBeingBuilt.get(partitionNumber);
-			
-			// for an in-memory partition, process set the return iterators, else spill the probe records
-			if (p.isInMemory()) {
-				this.recordComparator.setReference(next);
-				this.bucketIterator.set(bucket, p.overflowSegments, p, hash, bucketInSegmentOffset);
-				return true;
-			}
-			else {
-				p.insertIntoProbeBuffer(next);
+
+			final boolean existsInBF = this.probeSideComparator.testRecordInBloomFilter(next, this.bloomFilters[partitionNumber]);
+			// Do not need to compare inside bucket while probe record has filtered by bloom filter.
+			if (existsInBF) {
+				// for an in-memory partition, process set the return iterators, else spill the probe records
+				if (p.isInMemory()) {
+					this.recordComparator.setReference(next);
+					this.bucketIterator.set(bucket, p.overflowSegments, p, hash, bucketInSegmentOffset);
+					return true;
+				}
+				else {
+					p.insertIntoProbeBuffer(next);
+				}
 			}
 		}
 		
@@ -852,12 +862,13 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 		// --------- Step 1: Get the partition for this pair and put the pair into the buffer ---------
 		
 		long pointer = p.insertIntoBuildBuffer(record);
+		this.buildSideComparator.addRecordToBloomFilter(record, this.bloomFilters[partitionNumber]);
 		if (pointer != -1) {
 			// record was inserted into an in-memory partition. a pointer must be inserted into the buckets
 			insertBucketEntry(p, bucket, bucketInSegmentPos, hashCode, pointer);
 		}
 	}
-	
+
 	/**
 	 * @param p
 	 * @param bucket
@@ -880,6 +891,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 			bucket.putShort(bucketInSegmentPos + HEADER_COUNT_OFFSET, (short) (count + 1)); // update count
 		}
 		else {
+			LOG.error("Bucket is full, add hash code[" + hashCode + "] to overflow buckets.");
 			// we need to go to the overflow buckets
 			final long originalForwardPointer = bucket.getLong(bucketInSegmentPos + HEADER_FORWARD_OFFSET);
 			final long forwardForNewBucket;
@@ -994,12 +1006,19 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 		ensureNumBuffersReturned(numPartitions);
 		
 		this.currentEnumerator = this.ioManager.createChannelEnumerator();
+		final BloomFilter[] filters = new BloomFilter[numPartitions];
+		final int roughPartitionEntries = (availableMemory.get(0).size()/avgRecordLen) * (availableMemory.size()/numPartitions);
 		
 		this.partitionsBeingBuilt.clear();
 		for (int i = 0; i < numPartitions; i++) {
 			HashPartition<BT, PT> p = getNewInMemoryPartition(i, recursionLevel);
 			this.partitionsBeingBuilt.add(p);
+			MemorySegment segment = availableMemory.remove(availableMemory.size() - 1);
+			filters[i] = new BloomFilter(segment, 0, segment.size() * 8, roughPartitionEntries);
+			LOG.error("BloomFilters[" + numPartitions + "] " + filters[numPartitions].toString());
 		}
+
+		this.bloomFilters = filters;
 	}
 	
 	/**
@@ -1024,7 +1043,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 		final int bucketsPerSegment = this.bucketsPerSegmentMask + 1;
 		final int numSegs = (numBuckets >>> this.bucketsPerSegmentBits) + ( (numBuckets & this.bucketsPerSegmentMask) == 0 ? 0 : 1);
 		final MemorySegment[] table = new MemorySegment[numSegs];
-		
+
 		ensureNumBuffersReturned(numSegs);
 		
 		// go over all segments that are part of the table
@@ -1093,6 +1112,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 		// spill the partition
 		int numBuffersFreed = p.spillPartition(this.availableMemory, this.ioManager, 
 										this.currentEnumerator.next(), this.writeBehindBuffers);
+		LOG.error("Spill partition[" + largestPartNum + "]");
 		this.writeBehindBuffersAvailable += numBuffersFreed;
 		// grab as many buffers as are available directly
 		MemorySegment currBuff = null;
