@@ -22,7 +22,7 @@ import java.io.IOException;
 
 import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.MemorySegment;
-
+import org.apache.flink.util.BloomFilter;
 
 
 public final class ByteComparator extends BasicTypeComparator<Byte> {
@@ -83,5 +83,15 @@ public final class ByteComparator extends BasicTypeComparator<Byte> {
 	@Override
 	public ByteComparator duplicate() {
 		return new ByteComparator(ascendingComparison);
+	}
+
+	@Override
+	public void addRecordToBloomFilter(Byte record, BloomFilter bloomFilter) {
+		bloomFilter.addInt(record);
+	}
+
+	@Override
+	public boolean testRecordInBloomFilter(Byte record, BloomFilter bloomFilter) {
+		return bloomFilter.testInt(record);
 	}
 }

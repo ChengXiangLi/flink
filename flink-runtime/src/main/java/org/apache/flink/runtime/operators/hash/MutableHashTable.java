@@ -154,7 +154,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 	// -------------------------- Bucket Size and Structure -------------------------------------
 	
 	static final int NUM_INTRA_BUCKET_BITS = 7;
-	
+
 	static final int HASH_BUCKET_SIZE = 0x1 << NUM_INTRA_BUCKET_BITS;
 
 	static final int BUCKET_HEADER_LENGTH = 16;
@@ -1016,20 +1016,30 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 		ensureNumBuffersReturned(numPartitions);
 		
 		this.currentEnumerator = this.ioManager.createChannelEnumerator();
+
+		this.partitionsBeingBuilt.clear();
+		for (int i = 0; i < numPartitions; i++) {
+			HashPartition<BT, PT> p = getNewInMemoryPartition(i, recursionLevel);
+			this.partitionsBeingBuilt.add(p);
+		}
+
+		createBloomFilters(numPartitions);
+	}
+
+	protected void createBloomFilters(int numPartitions) {
 		final BloomFilter[] filters = new BloomFilter[numPartitions];
-		final int roughPartitionEntries = (availableMemory.get(0).size()/avgRecordLen) * (availableMemory.size()/numPartitions);
+		final int roughPartitionEntries = (availableMemory.get(0).size() / avgRecordLen) * (availableMemory.size() / numPartitions);
 
 		MemorySegment segment = getNextBuffer();
 		this.numBloomFilterBuffer = 1;
 		int offset = 0;
 		int lengthInBits = BloomFilter.optimalNumOfBits(roughPartitionEntries, 0.1);
 		final int segmentSizeInBits = segmentSize * Byte.SIZE;
+		// Do not support cross MemorySegment BitSet in BloomFilter yet.
 		lengthInBits = lengthInBits > segmentSizeInBits ? segmentSizeInBits : lengthInBits;
 		LOG.error(String.format("roughPartitionEntries[%d], BloomFilter lengthInBits[%d].", roughPartitionEntries, lengthInBits));
-		this.partitionsBeingBuilt.clear();
+
 		for (int i = 0; i < numPartitions; i++) {
-			HashPartition<BT, PT> p = getNewInMemoryPartition(i, recursionLevel);
-			this.partitionsBeingBuilt.add(p);
 			filters[i] = new BloomFilter(segment, offset, lengthInBits, roughPartitionEntries);
 			offset += lengthInBits;
 			if (offset + lengthInBits >= segmentSizeInBits) {
@@ -1039,7 +1049,6 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 			}
 			LOG.error("BloomFilters[" + i + "] " + filters[i].toString());
 		}
-
 		this.bloomFilters = filters;
 	}
 	

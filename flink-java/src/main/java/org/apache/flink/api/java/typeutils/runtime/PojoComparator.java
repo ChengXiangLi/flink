@@ -31,6 +31,7 @@ import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataOutputView;
 import org.apache.flink.core.memory.MemorySegment;
 import org.apache.flink.types.NullKeyFieldException;
+import org.apache.flink.util.BloomFilter;
 import org.apache.flink.util.InstantiationUtil;
 
 
@@ -347,6 +348,24 @@ public final class PojoComparator<T> extends CompositeTypeComparator<T> implemen
 			localIndex += comparators[i].extractKeys(accessField(keyFields[i], record), target, localIndex);
 		}
 		return localIndex - index;
+	}
+
+	@Override
+	public void addRecordToBloomFilter(T record, BloomFilter bloomFilter) {
+		if (this.keyFields.length == 1) {
+			this.comparators[0].addRecordToBloomFilter(accessField(keyFields[0], record), bloomFilter);
+		} else {
+			bloomFilter.addInt(hash(record));
+		}
+	}
+
+	@Override
+	public boolean testRecordInBloomFilter(T record, BloomFilter bloomFilter) {
+		if (this.keyFields.length == 1) {
+			return this.comparators[0].testRecordInBloomFilter(accessField(this.keyFields[0], record), bloomFilter);
+		} else {
+			return bloomFilter.testInt(hash(record));
+		}
 	}
 
 	// --------------------------------------------------------------------------------------------

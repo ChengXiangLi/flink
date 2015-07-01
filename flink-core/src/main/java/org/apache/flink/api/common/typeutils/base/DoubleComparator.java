@@ -22,7 +22,7 @@ import java.io.IOException;
 
 import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.MemorySegment;
-
+import org.apache.flink.util.BloomFilter;
 
 
 public final class DoubleComparator extends BasicTypeComparator<Double> {
@@ -66,5 +66,15 @@ public final class DoubleComparator extends BasicTypeComparator<Double> {
 	@Override
 	public DoubleComparator duplicate() {
 		return new DoubleComparator(ascendingComparison);
+	}
+
+	@Override
+	public void addRecordToBloomFilter(Double record, BloomFilter bloomFilter) {
+		bloomFilter.addDouble(record);
+	}
+
+	@Override
+	public boolean testRecordInBloomFilter(Double record, BloomFilter bloomFilter) {
+		return bloomFilter.testDouble(record);
 	}
 }

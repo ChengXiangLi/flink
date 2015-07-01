@@ -25,6 +25,7 @@ import org.apache.flink.core.memory.MemorySegment;
 import org.apache.flink.types.KeyFieldOutOfBoundsException;
 import org.apache.flink.types.NullFieldException;
 import org.apache.flink.types.NullKeyFieldException;
+import org.apache.flink.util.BloomFilter;
 
 
 public final class TupleComparator<T extends Tuple> extends TupleComparatorBase<T> {
@@ -153,5 +154,23 @@ public final class TupleComparator<T extends Tuple> extends TupleComparatorBase<
 
 	public TypeComparator<T> duplicate() {
 		return new TupleComparator<T>(this);
+	}
+
+	@Override
+	public void addRecordToBloomFilter(T record, BloomFilter bloomFilter) {
+		if (this.keyPositions.length == 1) {
+			this.comparators[0].addRecordToBloomFilter(record.getFieldNotNull(keyPositions[0]), bloomFilter);
+		} else {
+			bloomFilter.addInt(hash(record));
+		}
+	}
+
+	@Override
+	public boolean testRecordInBloomFilter(T record, BloomFilter bloomFilter) {
+		if (this.keyPositions.length == 1) {
+			return this.comparators[0].testRecordInBloomFilter(record.getFieldNotNull(keyPositions[0]), bloomFilter);
+		} else {
+			return bloomFilter.testInt(hash(record));
+		}
 	}
 }

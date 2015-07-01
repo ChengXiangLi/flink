@@ -21,6 +21,7 @@ import org.apache.flink.api.common.typeutils.{TypeComparator, TypeSerializer}
 import org.apache.flink.api.java.typeutils.runtime.TupleComparatorBase
 import org.apache.flink.core.memory.MemorySegment
 import org.apache.flink.types.{KeyFieldOutOfBoundsException, NullKeyFieldException}
+import org.apache.flink.util.BloomFilter
 
 /**
  * Comparator for Case Classes. Access is different from
@@ -161,5 +162,25 @@ class CaseClassComparator[T <: Product](
     }
 
     localIndex - index
+  }
+
+  override def addRecordToBloomFilter(record: T, bloomFilter: BloomFilter) {
+    if (this.keyPositions.length == 1) {
+      val comparator = comparators(0).asInstanceOf[TypeComparator[Any]]
+      comparator.addRecordToBloomFilter(record.productElement(keyPositions(0)), bloomFilter)
+    }
+    else {
+      bloomFilter.addInt(hash(record))
+    }
+  }
+
+  override def testRecordInBloomFilter(record: T, bloomFilter: BloomFilter): Boolean = {
+    if (this.keyPositions.length == 1) {
+      val comparator = comparators(0).asInstanceOf[TypeComparator[Any]]
+      return comparator.testRecordInBloomFilter(record.productElement(keyPositions(0)), bloomFilter)
+    }
+    else {
+      return bloomFilter.testInt(hash(record))
+    }
   }
 }
