@@ -22,7 +22,9 @@ package org.apache.flink.runtime.operators.hash;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -332,6 +334,8 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 	 * spilling code needs not wait until the partition is completely spilled before proceeding.
 	 */
 	protected int writeBehindBuffersAvailable;
+
+	protected int numBloomFilterBuffer;
 	
 	/**
 	 * The recursion depth of the partition that is currently processed. The initial table
@@ -639,6 +643,8 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 		
 		// clear the memory in the partitions
 		clearPartitions();
+
+		clearBloomFilters();
 		
 		// clear the current probe side channel, if there is one
 		if (this.currentSpilledProbeSide != null) {
@@ -706,12 +712,17 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 		final TypeComparator<BT> buildTypeComparator = this.buildSideComparator;
 		BT record = this.buildSideSerializer.createInstance();
 
+		LOG.error(String.format("Available segment size before build:[%d].", availableMemory.size() + writeBehindBuffers.size()));
+
 		// go over the complete input and insert every element into the hash table
 		while (this.running && ((record = input.next(record)) != null)) {
 			final int hashCode = hash(buildTypeComparator.hash(record), 0);
 			insertIntoTable(record, hashCode);
 		}
-		
+
+		LOG.error(String.format("Available segment size after build:[%d].", availableMemory.size() + writeBehindBuffers.size()));
+
+
 		if (!this.running) {
 			return;
 		}
@@ -743,7 +754,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 		// 2) We can not guarantee that enough memory segments are available and read the partition
 		//    in, distributing its data among newly created partitions.
 		final int totalBuffersAvailable = this.availableMemory.size() + this.writeBehindBuffersAvailable;
-		if (totalBuffersAvailable != this.totalNumBuffers - this.numWriteBehindBuffers) {
+		if (totalBuffersAvailable != this.totalNumBuffers - this.numWriteBehindBuffers - this.numBloomFilterBuffer) {
 			throw new RuntimeException("Hash Join bug in memory management: Memory buffers leaked.");
 		}
 		
@@ -891,7 +902,6 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 			bucket.putShort(bucketInSegmentPos + HEADER_COUNT_OFFSET, (short) (count + 1)); // update count
 		}
 		else {
-			LOG.error("Bucket is full, add hash code[" + hashCode + "] to overflow buckets.");
 			// we need to go to the overflow buckets
 			final long originalForwardPointer = bucket.getLong(bucketInSegmentPos + HEADER_FORWARD_OFFSET);
 			final long forwardForNewBucket;
@@ -1008,14 +1018,26 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 		this.currentEnumerator = this.ioManager.createChannelEnumerator();
 		final BloomFilter[] filters = new BloomFilter[numPartitions];
 		final int roughPartitionEntries = (availableMemory.get(0).size()/avgRecordLen) * (availableMemory.size()/numPartitions);
-		
+
+		MemorySegment segment = getNextBuffer();
+		this.numBloomFilterBuffer = 1;
+		int offset = 0;
+		int lengthInBits = BloomFilter.optimalNumOfBits(roughPartitionEntries, 0.1);
+		final int segmentSizeInBits = segmentSize * Byte.SIZE;
+		lengthInBits = lengthInBits > segmentSizeInBits ? segmentSizeInBits : lengthInBits;
+		LOG.error(String.format("roughPartitionEntries[%d], BloomFilter lengthInBits[%d].", roughPartitionEntries, lengthInBits));
 		this.partitionsBeingBuilt.clear();
 		for (int i = 0; i < numPartitions; i++) {
 			HashPartition<BT, PT> p = getNewInMemoryPartition(i, recursionLevel);
 			this.partitionsBeingBuilt.add(p);
-			MemorySegment segment = availableMemory.remove(availableMemory.size() - 1);
-			filters[i] = new BloomFilter(segment, 0, segment.size() * 8, roughPartitionEntries);
-			LOG.error("BloomFilters[" + numPartitions + "] " + filters[numPartitions].toString());
+			filters[i] = new BloomFilter(segment, offset, lengthInBits, roughPartitionEntries);
+			offset += lengthInBits;
+			if (offset + lengthInBits >= segmentSizeInBits) {
+				segment = getNextBuffer();
+				offset = 0;
+				this.numBloomFilterBuffer++;
+			}
+			LOG.error("BloomFilters[" + i + "] " + filters[i].toString());
 		}
 
 		this.bloomFilters = filters;
@@ -1037,6 +1059,16 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 			}
 		}
 		this.partitionsBeingBuilt.clear();
+	}
+
+	protected void clearBloomFilters() {
+		Set<MemorySegment> segments = new HashSet<MemorySegment>();
+		for (BloomFilter bloomFilter: bloomFilters) {
+			MemorySegment memorySegment = bloomFilter.getBitSet().getMemorySegment();
+			segments.add(memorySegment);
+		}
+		this.bloomFilters = null;
+		this.availableMemory.addAll(segments);
 	}
 	
 	protected void initTable(int numBuckets, byte numPartitions) {

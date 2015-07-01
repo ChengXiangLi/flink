@@ -82,14 +82,6 @@ public class BloomFilter {
 		}
 	}
 
-	public void addString(String val) {
-		if (val == null) {
-			add(null);
-		} else {
-			add(val.getBytes());
-		}
-	}
-
 	public void addInt(int val) {
 		addHash(getIntHash(val));
 	}
@@ -104,6 +96,14 @@ public class BloomFilter {
 
 	public void addDouble(double val) {
 		addLong(Double.doubleToLongBits(val));
+	}
+
+	public void addString(String val) {
+		if (val == null) {
+			add(null);
+		} else {
+			add(val.getBytes());
+		}
 	}
 
 	public boolean test(byte[] val) {
@@ -136,6 +136,22 @@ public class BloomFilter {
 		return true;
 	}
 
+	public boolean testInt(int val) {
+		return testHash(getIntHash(val));
+	}
+
+	public boolean testLong(long val) {
+		return testHash(getLongHash(val));
+	}
+
+	public boolean testFloat(float val) {
+		return testInt(Float.floatToIntBits(val));
+	}
+
+	public boolean testDouble(double val) {
+		return testLong(Double.doubleToLongBits(val));
+	}
+
 	public boolean testString(String val) {
 		if (val == null) {
 			return test(null);
@@ -144,12 +160,8 @@ public class BloomFilter {
 		}
 	}
 
-	public boolean testLong(long val) {
-		return testHash(getLongHash(val));
-	}
-
-	public boolean testInt(int val) {
-		return testHash(getIntHash(val));
+	private long getIntHash(int key) {
+		return getLongHash((long) key);
 	}
 
 	// Thomas Wang's integer hash function
@@ -165,16 +177,8 @@ public class BloomFilter {
 		return key;
 	}
 
-	private long getIntHash(int key) {
-		return getLongHash((long) key);
-	}
-
-	public boolean testDouble(double val) {
-		return testLong(Double.doubleToLongBits(val));
-	}
-
-	public boolean testFloat(float val) {
-		return testInt(Float.floatToIntBits(val));
+	public BitSet getBitSet() {
+		return this.bitSet;
 	}
 
 	public long sizeInBytes() {
@@ -189,6 +193,10 @@ public class BloomFilter {
 		return numHashFunctions;
 	}
 
+	public void reset() {
+		this.bitSet.clear();
+	}
+
 	@Override
 	public String toString() {
 		StringBuilder output = new StringBuilder();
@@ -197,10 +205,6 @@ public class BloomFilter {
 		output.append("\thash function number:").append(numHashFunctions).append("\n");
 		output.append(bitSet);
 		return output.toString();
-	}
-
-	public void reset() {
-		this.bitSet.clear();
 	}
 
 	/**
@@ -264,6 +268,10 @@ public class BloomFilter {
 		 */
 		public int bitSize() {
 			return length << 3;
+		}
+
+		public MemorySegment getMemorySegment() {
+			return this.memorySegment;
 		}
 
 		/**
