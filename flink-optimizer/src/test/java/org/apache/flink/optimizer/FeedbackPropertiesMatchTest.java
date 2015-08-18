@@ -1423,7 +1423,7 @@ public class FeedbackPropertiesMatchTest {
 	// --------------------------------------------------------------------------------------------
 	
 	private static DataSourceNode getSourceNode() {
-		return new DataSourceNode(new GenericDataSourceBase<String, TextInputFormat>(new TextInputFormat(new Path("/")), new OperatorInformation<String>(BasicTypeInfo.STRING_TYPE_INFO)));
+		return new DataSourceNode(new GenericDataSourceBase<String, TextInputFormat>(new TextInputFormat(Path.createPath("/")), new OperatorInformation<String>(BasicTypeInfo.STRING_TYPE_INFO)));
 	}
 	
 	private static MapNode getMapNode() {

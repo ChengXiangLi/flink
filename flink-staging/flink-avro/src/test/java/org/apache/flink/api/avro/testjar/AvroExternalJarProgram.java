@@ -209,7 +209,7 @@ public class AvroExternalJarProgram  {
 		
 		ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
 		
-		DataSet<MyUser> input = env.createInput(new AvroInputFormat<MyUser>(new Path(inputPath), MyUser.class));
+		DataSet<MyUser> input = env.createInput(new AvroInputFormat<MyUser>(Path.createPath(inputPath), MyUser.class));
 	
 		DataSet<Tuple2<String, MyUser>> result = input.map(new NameExtractor()).groupBy(0).reduce(new NameGrouper());
 		

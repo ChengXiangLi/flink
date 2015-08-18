@@ -126,8 +126,8 @@ public class BoltTokenizerWordCountWithNames {
 			// read the text file from given input path
 			TypeInformation<Tuple1<String>> sourceType = TypeExtractor
 					.getForObject(new Tuple1<String>(""));
-			return env.createInput(new CsvInputFormat<Tuple1<String>>(new Path(
-					textPath), CsvInputFormat.DEFAULT_LINE_DELIMITER,
+			return env.createInput(new CsvInputFormat<Tuple1<String>>(Path.createPath(
+							textPath), CsvInputFormat.DEFAULT_LINE_DELIMITER,
 					CsvInputFormat.DEFAULT_LINE_DELIMITER, sourceType),
 					sourceType);
 		}

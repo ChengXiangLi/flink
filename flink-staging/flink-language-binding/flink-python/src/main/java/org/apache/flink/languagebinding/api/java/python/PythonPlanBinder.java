@@ -40,7 +40,7 @@ import org.apache.flink.languagebinding.api.java.common.streaming.StreamPrinter;
 import org.apache.flink.runtime.filecache.FileCache;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import org.apache.flink.util.FileSystemUtil;
 /**
  * This class allows the execution of a Flink plan written in python.
  */
@@ -162,7 +162,7 @@ public class PythonPlanBinder extends PlanBinder<PythonOperationInfo> {
 		String tmpFilePath = FLINK_PYTHON_FILE_PATH + "/" + identifier;
 		clearPath(tmpFilePath);
 		Path p = new Path(path);
-		FileCache.copy(p.makeQualified(FileSystem.get(p.toUri())), new Path(tmpFilePath), true);
+		FileCache.copy(FileSystemUtil.makeQualified(p, FileSystem.get(p.getUri())), new Path(tmpFilePath), true);
 	}
 
 	private static void distributeFiles(ExecutionEnvironment env) throws IOException, URISyntaxException {

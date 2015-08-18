@@ -34,7 +34,6 @@ import org.apache.flink.core.fs.FSDataInputStream;
 import org.apache.flink.core.fs.FSDataOutputStream;
 import org.apache.flink.core.fs.FileStatus;
 import org.apache.flink.core.fs.Path;
-import org.apache.flink.core.fs.local.LocalFileSystem;
 import org.apache.flink.core.testutils.CommonTestUtils;
 import org.junit.Test;
 

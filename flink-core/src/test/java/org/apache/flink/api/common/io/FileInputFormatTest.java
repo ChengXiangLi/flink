@@ -294,15 +294,15 @@ public class FileInputFormatTest {
 			format.setFilePath(f.toURI().toString());
 			format.configure(new Configuration());
 			FileInputSplit[] splits = format.createInputSplits(1);
-			
+
 			Assert.assertEquals(2, splits.length);
-			
-			final URI uri1 = splits[0].getPath().toUri();
-			final URI uri2 = splits[1].getPath().toUri();
+
+			final URI uri1 = splits[0].getPath().getUri();
+			final URI uri2 = splits[1].getPath().getUri();
 
 			final URI childUri1 = child1.toURI();
 			final URI childUri2 = child2.toURI();
-			
+
 			Assert.assertTrue(  (uri1.equals(childUri1) && uri2.equals(childUri2)) ||
 								(uri1.equals(childUri2) && uri2.equals(childUri1)) );
 		}
@@ -326,7 +326,7 @@ public class FileInputFormatTest {
 				f = new File(tempDir, TestFileUtils.randomFileName(""));
 			}
 			while (f.exists());
-			
+
 			assertTrue(f.mkdirs());
 			f.deleteOnExit();
 
@@ -367,7 +367,7 @@ public class FileInputFormatTest {
 	// ------------------------------------------------------------------------
 	//  Stream Decoration
 	// ------------------------------------------------------------------------
-	
+
 	@Test
 	public void testDecorateInputStream() throws IOException {
 		// create temporary file with 3 blocks

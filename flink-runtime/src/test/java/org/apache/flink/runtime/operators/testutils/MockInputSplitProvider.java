@@ -73,11 +73,11 @@ public class MockInputSplitProvider implements InputSplitProvider {
 		long pos = 0;
 
 		for (int i = 0; i < noSplits - 1; i++) {
-			tmp[i] = new FileInputSplit(i, new Path(path), pos, splitLength, hosts);
+			tmp[i] = new FileInputSplit(i, Path.createPath(path), pos, splitLength, hosts);
 			pos += splitLength;
 		}
 
-		tmp[noSplits - 1] = new FileInputSplit(noSplits - 1, new Path(path), pos, inFile.length() - pos, hosts);
+		tmp[noSplits - 1] = new FileInputSplit(noSplits - 1, Path.createPath(path), pos, inFile.length() - pos, hosts);
 
 		this.inputSplits = tmp;
 	}

@@ -50,11 +50,11 @@ public class FileStateHandle extends ByteStreamStateHandle {
 	}
 
 	protected OutputStream getOutputStream() throws IOException, URISyntaxException {
-		return FileSystem.get(new URI(pathString)).create(new Path(pathString), true);
+		return FileSystem.get(new URI(pathString)).create(Path.createPath(pathString), true);
 	}
 
 	protected InputStream getInputStream() throws IOException, URISyntaxException {
-		return FileSystem.get(new URI(pathString)).open(new Path(pathString));
+		return FileSystem.get(new URI(pathString)).open(Path.createPath(pathString));
 	}
 
 	private String randomString() {
@@ -65,7 +65,7 @@ public class FileStateHandle extends ByteStreamStateHandle {
 
 	@Override
 	public void discardState() throws Exception {
-		FileSystem.get(new URI(pathString)).delete(new Path(pathString), false);
+		FileSystem.get(new URI(pathString)).delete(Path.createPath(pathString), false);
 	}
 
 	/**

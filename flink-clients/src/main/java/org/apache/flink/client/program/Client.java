@@ -306,7 +306,7 @@ public class Client {
 		}
 
 		for (File jar : jarFiles) {
-			job.addJar(new Path(jar.getAbsolutePath()));
+			job.addJar(Path.createPath(jar.getAbsolutePath()));
 		}
 
 		return job;

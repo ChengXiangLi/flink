@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.net.URI;
 import org.junit.Test;
 import static org.junit.Assert.*;
+import org.apache.flink.util.FileSystemUtil;
 
 public class PathTest {
 
@@ -28,49 +29,49 @@ public class PathTest {
 	public void testPathFromString() {
 
 		Path p = new Path("/my/path");
-		assertEquals("/my/path", p.toUri().getPath());
-		assertNull(p.toUri().getScheme());
+		assertEquals("/my/path", p.getUri().getPath());
+		assertNull(p.getUri().getScheme());
 
 		p = new Path("/my/path/");
-		assertEquals("/my/path", p.toUri().getPath());
-		assertNull(p.toUri().getScheme());
+		assertEquals("/my/path", p.getUri().getPath());
+		assertNull(p.getUri().getScheme());
 
 		p = new Path("/my//path/");
-		assertEquals("/my/path", p.toUri().getPath());
-		assertNull(p.toUri().getScheme());
+		assertEquals("/my/path", p.getUri().getPath());
+		assertNull(p.getUri().getScheme());
 
 		p = new Path("/my//path//a///");
-		assertEquals("/my/path/a", p.toUri().getPath());
-		assertNull(p.toUri().getScheme());
+		assertEquals("/my/path/a", p.getUri().getPath());
+		assertNull(p.getUri().getScheme());
 
 		p = new Path("\\my\\path\\\\a\\\\\\");
-		assertEquals("/my/path/a", p.toUri().getPath());
-		assertNull(p.toUri().getScheme());
+		assertEquals("/my/path/a", p.getUri().getPath());
+		assertNull(p.getUri().getScheme());
 
 		p = new Path("/my/path/ ");
-		assertEquals("/my/path", p.toUri().getPath());
-		assertNull(p.toUri().getScheme());
+		assertEquals("/my/path", p.getUri().getPath());
+		assertNull(p.getUri().getScheme());
 
 		p = new Path("hdfs:///my/path");
-		assertEquals("/my/path", p.toUri().getPath());
-		assertEquals("hdfs", p.toUri().getScheme());
+		assertEquals("/my/path", p.getUri().getPath());
+		assertEquals("hdfs", p.getUri().getScheme());
 
 		p = new Path("hdfs:///my/path/");
-		assertEquals("/my/path", p.toUri().getPath());
-		assertEquals("hdfs", p.toUri().getScheme());
+		assertEquals("/my/path", p.getUri().getPath());
+		assertEquals("hdfs", p.getUri().getScheme());
 
 		p = new Path("file:///my/path");
-		assertEquals("/my/path", p.toUri().getPath());
-		assertEquals("file", p.toUri().getScheme());
+		assertEquals("/my/path", p.getUri().getPath());
+		assertEquals("file", p.getUri().getScheme());
 
 		p = new Path("C:/my/windows/path");
-		assertEquals("/C:/my/windows/path", p.toUri().getPath());
+		assertEquals("/C:/my/windows/path", p.getUri().getPath());
 
 		p = new Path("file:/C:/my/windows/path");
-		assertEquals("/C:/my/windows/path", p.toUri().getPath());
+		assertEquals("/C:/my/windows/path", p.getUri().getPath());
 
 		try {
-			new Path((String)null);
+			new Path((String) null);
 			fail();
 		} catch(Exception e) {
 			// exception expected
@@ -184,22 +185,22 @@ public class PathTest {
 	public void testGetParent() {
 
 		Path p = new Path("/my/fancy/path");
-		assertEquals("/my/fancy", p.getParent().toUri().getPath());
+		assertEquals("/my/fancy", p.getParent().getUri().getPath());
 
 		p = new Path("/my/other/fancy/path/");
-		assertEquals("/my/other/fancy", p.getParent().toUri().getPath());
+		assertEquals("/my/other/fancy", p.getParent().getUri().getPath());
 
 		p = new Path("hdfs:///my/path");
-		assertEquals("/my", p.getParent().toUri().getPath());
+		assertEquals("/my", p.getParent().getUri().getPath());
 
 		p = new Path("hdfs:///myPath/");
-		assertEquals("/", p.getParent().toUri().getPath());
+		assertEquals("/", p.getParent().getUri().getPath());
 
 		p = new Path("/");
 		assertNull(p.getParent());
 
 		p = new Path("C:/my/windows/path");
-		assertEquals("/C:/my/windows", p.getParent().toUri().getPath());
+		assertEquals("/C:/my/windows", p.getParent().getUri().getPath());
 	}
 
 	@Test
@@ -207,15 +208,15 @@ public class PathTest {
 
 		Path p = new Path("/my/path");
 		p = p.suffix("_123");
-		assertEquals("/my/path_123", p.toUri().getPath());
+		assertEquals("/my/path_123", p.getUri().getPath());
 
 		p = new Path("/my/path/");
 		p = p.suffix("/abc");
-		assertEquals("/my/path/abc", p.toUri().getPath());
+		assertEquals("/my/path/abc", p.getUri().getPath());
 
 		p = new Path("C:/my/windows/path");
 		p = p.suffix("/abc");
-		assertEquals("/C:/my/windows/path/abc", p.toUri().getPath());
+		assertEquals("/C:/my/windows/path/abc", p.getUri().getPath());
 
 	}
 
@@ -247,29 +248,29 @@ public class PathTest {
 
 		// correct usage
 		// hdfs://localhost:8000/test/test
-		u = new Path(scheme + "://" + authority + path).toUri();
+		u = new Path(scheme + "://" + authority + path).getUri();
 		assertEquals(scheme, u.getScheme());
 		assertEquals(authority, u.getAuthority());
 		assertEquals(path, u.getPath());
 		// hdfs:///test/test
-		u = new Path(scheme + "://" + path).toUri();
+		u = new Path(scheme + "://" + path).getUri();
 		assertEquals(scheme, u.getScheme());
 		assertEquals(null, u.getAuthority());
 		assertEquals(path, u.getPath());
 		// hdfs:/test/test
-		u = new Path(scheme + ":" + path).toUri();
+		u = new Path(scheme + ":" + path).getUri();
 		assertEquals(scheme, u.getScheme());
 		assertEquals(null, u.getAuthority());
 		assertEquals(path, u.getPath());
 
 		// incorrect usage
 		// hdfs://test/test
-		u = new Path(scheme + ":/" + path).toUri();
+		u = new Path(scheme + ":/" + path).getUri();
 		assertEquals(scheme, u.getScheme());
 		assertEquals("test", u.getAuthority());
 		assertEquals("/test", u.getPath());
 		// hdfs:////test/test
-		u = new Path(scheme + ":///" + path).toUri();
+		u = new Path(scheme + ":///" + path).getUri();
 		assertEquals("hdfs", u.getScheme());
 		assertEquals(null, u.getAuthority());
 		assertEquals(path, u.getPath());
@@ -283,18 +284,18 @@ public class PathTest {
 
 		path = "test/test";
 		p = new Path(path);
-		u = p.toUri();
-		p = p.makeQualified(FileSystem.get(u));
-		u = p.toUri();
+		u = p.getUri();
+		p = FileSystemUtil.makeQualified(p, FileSystem.get(u));
+		u = p.getUri();
 		assertEquals("file", u.getScheme());
 		assertEquals(null, u.getAuthority());
-		assertEquals(FileSystem.getLocalFileSystem().getWorkingDirectory().toUri().getPath() + "/" + path, u.getPath());
+		assertEquals(FileSystem.getLocalFileSystem().getWorkingDirectory().getUri().getPath() + "/" + path, u.getPath());
 
 		path = "/test/test";
 		p = new Path(path);
-		u = p.toUri();
-		p = p.makeQualified(FileSystem.get(u));
-		u = p.toUri();
+		u = p.getUri();
+		p = FileSystemUtil.makeQualified(p, FileSystem.get(u));
+		u = p.getUri();
 		assertEquals("file", u.getScheme());
 		assertEquals(null, u.getAuthority());
 		assertEquals(path, u.getPath());

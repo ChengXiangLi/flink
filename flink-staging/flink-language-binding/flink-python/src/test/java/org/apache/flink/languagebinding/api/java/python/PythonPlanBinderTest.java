@@ -42,7 +42,7 @@ public class PythonPlanBinderTest {
 		TEST_FILES = new ArrayList();
 		FileSystem fs = FileSystem.getLocalFileSystem();
 		FileStatus[] status = fs.listStatus(
-				new Path(fs.getWorkingDirectory().toString()
+				Path.createPath(fs.getWorkingDirectory().toString()
 						+ "/src/test/python/org/apache/flink/languagebinding/api/python/flink/test"));
 		for (FileStatus f : status) {
 			String file = f.getPath().toString();

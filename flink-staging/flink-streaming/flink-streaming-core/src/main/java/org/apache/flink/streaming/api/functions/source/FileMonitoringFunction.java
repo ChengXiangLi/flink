@@ -74,7 +74,7 @@ public class FileMonitoringFunction implements SourceFunction<Tuple3<String, Lon
 					offsetOfFiles.put(filePath, -1L);
 				} else if (watchType == WatchType.PROCESS_ONLY_APPENDED) {
 					long offset = 0;
-					long fileSize = fileSystem.getFileStatus(new Path(filePath)).getLen();
+					long fileSize = fileSystem.getFileStatus(Path.createPath(filePath)).getLen();
 					if (offsetOfFiles.containsKey(filePath)) {
 						offset = offsetOfFiles.get(filePath);
 					}
@@ -93,7 +93,7 @@ public class FileMonitoringFunction implements SourceFunction<Tuple3<String, Lon
 	private List<String> listNewFiles(FileSystem fileSystem) throws IOException {
 		List<String> files = new ArrayList<String>();
 
-		FileStatus[] statuses = fileSystem.listStatus(new Path(path));
+		FileStatus[] statuses = fileSystem.listStatus(Path.createPath(path));
 
 		for (FileStatus status : statuses) {
 			Path filePath = status.getPath();

@@ -39,7 +39,6 @@ import org.apache.flink.core.fs.FSDataOutputStream;
 import org.apache.flink.core.fs.FileStatus;
 import org.apache.flink.core.fs.FileSystem;
 import org.apache.flink.core.fs.Path;
-import org.apache.flink.runtime.fs.s3.S3FileSystem;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -115,7 +114,7 @@ public class S3FileSystemTest {
 		}
 
 		final String bucketName = getRandomName();
-		final Path bucketPath = new Path(S3_BASE_URI + bucketName + Path.SEPARATOR);
+		final Path bucketPath = Path.createPath(S3_BASE_URI + bucketName + Path.SEPARATOR);
 
 		try {
 
@@ -125,7 +124,7 @@ public class S3FileSystemTest {
 			fs.mkdirs(bucketPath);
 
 			// Check if directory is correctly displayed in file system hierarchy
-			final FileStatus[] content = fs.listStatus(new Path(S3_BASE_URI));
+			final FileStatus[] content = fs.listStatus(Path.createPath(S3_BASE_URI));
 			boolean entryFound = false;
 			for (final FileStatus entry : content) {
 				if (bucketPath.equals(entry.getPath())) {
@@ -208,11 +207,11 @@ public class S3FileSystemTest {
 		final String subdirName = getRandomName();
 		final String subsubdirName = getRandomName();
 		final String fileName = getRandomName();
-		final Path dir = new Path(S3_BASE_URI + dirName + Path.SEPARATOR);
-		final Path subdir = new Path(S3_BASE_URI + dirName + Path.SEPARATOR + subdirName + Path.SEPARATOR);
-		final Path subsubdir = new Path(S3_BASE_URI + dirName + Path.SEPARATOR + subdirName + Path.SEPARATOR
-			+ subsubdirName + Path.SEPARATOR);
-		final Path file = new Path(S3_BASE_URI + dirName + Path.SEPARATOR + subdirName + Path.SEPARATOR + fileName);
+		final Path dir = Path.createPath(S3_BASE_URI + dirName + Path.SEPARATOR);
+		final Path subdir = Path.createPath(S3_BASE_URI + dirName + Path.SEPARATOR + subdirName + Path.SEPARATOR);
+		final Path subsubdir = Path.createPath(S3_BASE_URI + dirName + Path.SEPARATOR + subdirName + Path.SEPARATOR
+				+ subsubdirName + Path.SEPARATOR);
+		final Path file = Path.createPath(S3_BASE_URI + dirName + Path.SEPARATOR + subdirName + Path.SEPARATOR + fileName);
 
 		try {
 
@@ -276,8 +275,8 @@ public class S3FileSystemTest {
 
 		final String dirName = getRandomName();
 		final String fileName = getRandomName();
-		final Path dir = new Path(S3_BASE_URI + dirName + Path.SEPARATOR);
-		final Path file = new Path(S3_BASE_URI + dirName + Path.SEPARATOR + fileName);
+		final Path dir = Path.createPath(S3_BASE_URI + dirName + Path.SEPARATOR);
+		final Path file = Path.createPath(S3_BASE_URI + dirName + Path.SEPARATOR + fileName);
 
 		try {
 
@@ -331,8 +330,8 @@ public class S3FileSystemTest {
 
 		final String bucketName = getRandomName();
 		final String objectName = getRandomName();
-		final Path bucketPath = new Path(S3_BASE_URI + bucketName + Path.SEPARATOR);
-		final Path objectPath = new Path(S3_BASE_URI + bucketName + Path.SEPARATOR + objectName);
+		final Path bucketPath = Path.createPath(S3_BASE_URI + bucketName + Path.SEPARATOR);
+		final Path objectPath = Path.createPath(S3_BASE_URI + bucketName + Path.SEPARATOR + objectName);
 
 		FileSystem fs = bucketPath.getFileSystem();
 

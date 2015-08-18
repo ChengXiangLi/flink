@@ -891,7 +891,7 @@ public class DataStream<OUT> {
 	 * @return the closed DataStream.
 	 */
 	public DataStreamSink<OUT> writeAsText(String path) {
-		return write(new TextOutputFormat<OUT>(new Path(path)), 0L);
+		return write(new TextOutputFormat<OUT>(Path.createPath(path)), 0L);
 	}
 
 	/**
@@ -908,7 +908,7 @@ public class DataStream<OUT> {
 	 * @return the closed DataStream
 	 */
 	public DataStreamSink<OUT> writeAsText(String path, long millis) {
-		TextOutputFormat<OUT> tof = new TextOutputFormat<OUT>(new Path(path));
+		TextOutputFormat<OUT> tof = new TextOutputFormat<OUT>(Path.createPath(path));
 		return write(tof, millis);
 	}
 
@@ -926,7 +926,7 @@ public class DataStream<OUT> {
 	 * @return the closed DataStream.
 	 */
 	public DataStreamSink<OUT> writeAsText(String path, WriteMode writeMode) {
-		TextOutputFormat<OUT> tof = new TextOutputFormat<OUT>(new Path(path));
+		TextOutputFormat<OUT> tof = new TextOutputFormat<OUT>(Path.createPath(path));
 		tof.setWriteMode(writeMode);
 		return write(tof, 0L);
 	}
@@ -947,7 +947,7 @@ public class DataStream<OUT> {
 	 * @return the closed DataStream.
 	 */
 	public DataStreamSink<OUT> writeAsText(String path, WriteMode writeMode, long millis) {
-		TextOutputFormat<OUT> tof = new TextOutputFormat<OUT>(new Path(path));
+		TextOutputFormat<OUT> tof = new TextOutputFormat<OUT>(Path.createPath(path));
 		tof.setWriteMode(writeMode);
 		return write(tof, millis);
 	}
@@ -966,7 +966,7 @@ public class DataStream<OUT> {
 	public <X extends Tuple> DataStreamSink<OUT> writeAsCsv(String path) {
 		Preconditions.checkArgument(getType().isTupleType(),
 				"The writeAsCsv() method can only be used on data sets of tuples.");
-		CsvOutputFormat<X> of = new CsvOutputFormat<X>(new Path(path),
+		CsvOutputFormat<X> of = new CsvOutputFormat<X>(Path.createPath(path),
 				CsvOutputFormat.DEFAULT_LINE_DELIMITER, CsvOutputFormat.DEFAULT_FIELD_DELIMITER);
 		return write((OutputFormat<OUT>) of, 0L);
 	}
@@ -988,7 +988,7 @@ public class DataStream<OUT> {
 	public <X extends Tuple> DataStreamSink<OUT> writeAsCsv(String path, long millis) {
 		Preconditions.checkArgument(getType().isTupleType(),
 				"The writeAsCsv() method can only be used on data sets of tuples.");
-		CsvOutputFormat<X> of = new CsvOutputFormat<X>(new Path(path),
+		CsvOutputFormat<X> of = new CsvOutputFormat<X>(Path.createPath(path),
 				CsvOutputFormat.DEFAULT_LINE_DELIMITER, CsvOutputFormat.DEFAULT_FIELD_DELIMITER);
 		return write((OutputFormat<OUT>) of, millis);
 	}
@@ -1010,7 +1010,7 @@ public class DataStream<OUT> {
 	public <X extends Tuple> DataStreamSink<OUT> writeAsCsv(String path, WriteMode writeMode) {
 		Preconditions.checkArgument(getType().isTupleType(),
 				"The writeAsCsv() method can only be used on data sets of tuples.");
-		CsvOutputFormat<X> of = new CsvOutputFormat<X>(new Path(path),
+		CsvOutputFormat<X> of = new CsvOutputFormat<X>(Path.createPath(path),
 				CsvOutputFormat.DEFAULT_LINE_DELIMITER, CsvOutputFormat.DEFAULT_FIELD_DELIMITER);
 		if (writeMode != null) {
 			of.setWriteMode(writeMode);
@@ -1039,7 +1039,7 @@ public class DataStream<OUT> {
 			long millis) {
 		Preconditions.checkArgument(getType().isTupleType(),
 				"The writeAsCsv() method can only be used on data sets of tuples.");
-		CsvOutputFormat<X> of = new CsvOutputFormat<X>(new Path(path),
+		CsvOutputFormat<X> of = new CsvOutputFormat<X>(Path.createPath(path),
 				CsvOutputFormat.DEFAULT_LINE_DELIMITER, CsvOutputFormat.DEFAULT_FIELD_DELIMITER);
 		if (writeMode != null) {
 			of.setWriteMode(writeMode);

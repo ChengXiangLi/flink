@@ -63,19 +63,28 @@ public class Path implements IOReadableWritable, Serializable {
 	private URI uri;
 
 	/**
-	 * Constructs a new (empty) path object (used to reconstruct path object after RPC call).
-	 */
-	public Path() {}
-
-	/**
 	 * Constructs a path object from a given URI.
-	 * 
+	 *
 	 * @param uri
 	 *        the URI to construct the path object from
 	 */
 	public Path(URI uri) {
 		this.uri = uri;
 	}
+
+	/**
+	 * Converts the path object to a {@link URI}.
+	 *
+	 * @return the {@link URI} object converted from the path object
+	 */
+	public URI getUri() {
+		return this.uri;
+	}
+
+	/**
+	 * Constructs a new (empty) path object (used to reconstruct path object after RPC call).
+	 */
+	public Path() {}
 
 	/**
 	 * Resolve a child path against a parent path.
@@ -97,9 +106,9 @@ public class Path implements IOReadableWritable, Serializable {
 	 * @param child
 	 *        the child path
 	 */
-	public Path(Path parent, String child) {
+	 public Path(Path parent, String child) {
 		this(parent, new Path(child));
-	}
+	 }
 
 	/**
 	 * Resolve a child path against a parent path.
@@ -138,29 +147,9 @@ public class Path implements IOReadableWritable, Serializable {
 			child = new Path(child.uri.getScheme(), child.uri.getAuthority(), child.uri.getPath().substring(1));
 		}
 
+
 		final URI resolved = parentUri.resolve(child.uri);
 		initialize(resolved.getScheme(), resolved.getAuthority(), normalizePath(resolved.getPath()));
-	}
-
-	/**
- 	 * Checks if the provided path string is either null or has zero length and throws
-	 * a {@link IllegalArgumentException} if any of the two conditions apply.
-	 * In addition, leading and tailing whitespaces are removed.
-	 *
-	 * @param path
-	 *        the path string to be checked
-	 * @return The checked and trimmed path.
-	 */
-	private String checkAndTrimPathArg(String path) {
-		// disallow construction of a Path from an empty string
-		if (path == null) {
-			throw new IllegalArgumentException("Can not create a Path from a null string");
-		}
-		path = path.trim();
-		if (path.length() == 0) {
-			throw new IllegalArgumentException("Can not create a Path from an empty string");
-		}
-		return path;
 	}
 
 	/**
@@ -175,7 +164,6 @@ public class Path implements IOReadableWritable, Serializable {
 
 		// We can't use 'new URI(String)' directly, since it assumes things are
 		// escaped, which we don't require of Paths.
-
 		// add a slash in front of paths with Windows drive letters
 		if (hasWindowsDrive(pathString, false)) {
 			pathString = "/" + pathString;
@@ -190,8 +178,8 @@ public class Path implements IOReadableWritable, Serializable {
 		// parse uri scheme, if any
 		final int colon = pathString.indexOf(':');
 		final int slash = pathString.indexOf('/');
-		if ((colon != -1) && ((slash == -1) || (colon < slash))) { // has a
-			// scheme
+		if ((colon != -1) && ((slash == -1) || (colon < slash))) {
+		    // has a scheme
 			scheme = pathString.substring(0, colon);
 			start = colon + 1;
 		}
@@ -223,6 +211,27 @@ public class Path implements IOReadableWritable, Serializable {
 	public Path(String scheme, String authority, String path) {
 		path = checkAndTrimPathArg(path);
 		initialize(scheme, authority, path);
+	}
+
+	/**
+	 * Checks if the provided path string is either null or has zero length and throws
+	 * a {@link IllegalArgumentException} if any of the two conditions apply.
+	 * In addition, leading and tailing whitespaces are removed.
+	 *
+	 * @param path
+	 *        the path string to be checked
+	 * @return The checked and trimmed path.
+	 */
+	private String checkAndTrimPathArg(String path) {
+		// disallow construction of a Path from an empty string
+		if (path == null) {
+			throw new IllegalArgumentException("Can not create a Path from a null string");
+		}
+		path = path.trim();
+		if (path.length() == 0) {
+			throw new IllegalArgumentException("Can not create a Path from an empty string");
+		}
+		return path;
 	}
 
 	/**
@@ -290,15 +299,6 @@ public class Path implements IOReadableWritable, Serializable {
 	}
 
 	/**
-	 * Converts the path object to a {@link URI}.
-	 * 
-	 * @return the {@link URI} object converted from the path object
-	 */
-	public URI toUri() {
-		return uri;
-	}
-
-	/**
 	 * Returns the FileSystem that owns this Path.
 	 * 
 	 * @return the FileSystem that owns this Path
@@ -306,7 +306,7 @@ public class Path implements IOReadableWritable, Serializable {
 	 *         thrown if the file system could not be retrieved
 	 */
 	public FileSystem getFileSystem() throws IOException {
-		return FileSystem.get(this.toUri());
+		return FileSystem.get(this.getUri());
 	}
 
 	/**
@@ -340,7 +340,7 @@ public class Path implements IOReadableWritable, Serializable {
 		final String path = uri.getPath();
 		final int lastSlash = path.lastIndexOf('/');
 		final int start = hasWindowsDrive(path, true) ? 3 : 0;
-		if ((path.length() == start) || // empty path
+		if ( // empty path
 			(lastSlash == start && path.length() == start + 1)) { // at root
 			return null;
 		}
@@ -364,6 +364,31 @@ public class Path implements IOReadableWritable, Serializable {
 		return new Path(getParent(), getName() + suffix);
 	}
 
+	/**
+	 * Returns the number of elements in this path.
+	 * 
+	 * @return the number of elements in this path
+	 */
+	public int depth() {
+		String path = uri.getPath();
+		int depth = 0;
+		int slash = path.length() == 1 && path.charAt(0) == '/' ? -1 : 0;
+		while (slash != -1) {
+			depth++;
+			slash = path.indexOf(SEPARATOR, slash + 1);
+		}
+		return depth;
+	}
+
+	@Override
+	public boolean equals(Object o) {
+		if (!(o instanceof Path)) {
+			return false;
+		}
+		Path that = (Path) o;
+		return this.uri.equals(that.uri);
+	}
+
 	@Override
 	public String toString() {
 		// we can't use uri.toString(), which escapes everything, because we
@@ -381,91 +406,16 @@ public class Path implements IOReadableWritable, Serializable {
 		if (uri.getPath() != null) {
 			String path = uri.getPath();
 			if (path.indexOf('/') == 0 && hasWindowsDrive(path, true) && // has
-				// windows
-				// drive
-				uri.getScheme() == null && // but no scheme
-				uri.getAuthority() == null) { // or authority
+					// windows
+					// drive
+					uri.getScheme() == null && // but no scheme
+					uri.getAuthority() == null) { // or authority
 				path = path.substring(1); // remove slash before drive
 			}
 			buffer.append(path);
 		}
 		return buffer.toString();
 	}
-
-
-	@Override
-	public boolean equals(Object o) {
-		if (!(o instanceof Path)) {
-			return false;
-		}
-		Path that = (Path) o;
-		return this.uri.equals(that.uri);
-	}
-
-
-	@Override
-	public int hashCode() {
-		return uri.hashCode();
-	}
-
-	public int compareTo(Object o) {
-		Path that = (Path) o;
-		return this.uri.compareTo(that.uri);
-	}
-
-	/**
-	 * Returns the number of elements in this path.
-	 * 
-	 * @return the number of elements in this path
-	 */
-	public int depth() {
-		String path = uri.getPath();
-		int depth = 0;
-		int slash = path.length() == 1 && path.charAt(0) == '/' ? -1 : 0;
-		while (slash != -1) {
-			depth++;
-			slash = path.indexOf(SEPARATOR, slash + 1);
-		}
-		return depth;
-	}
-
-	/**
-	 * Returns a qualified path object.
-	 * 
-	 * @param fs
-	 *        the FileSystem that should be used to obtain the current working directory
-	 * @return the qualified path object
-	 */
-	public Path makeQualified(FileSystem fs) {
-		Path path = this;
-		if (!isAbsolute()) {
-			path = new Path(fs.getWorkingDirectory(), this);
-		}
-
-		final URI pathUri = path.toUri();
-		final URI fsUri = fs.getUri();
-
-		String scheme = pathUri.getScheme();
-		String authority = pathUri.getAuthority();
-
-		if (scheme != null && (authority != null || fsUri.getAuthority() == null)) {
-			return path;
-		}
-
-		if (scheme == null) {
-			scheme = fsUri.getScheme();
-		}
-
-		if (authority == null) {
-			authority = fsUri.getAuthority();
-			if (authority == null) {
-				authority = "";
-			}
-		}
-
-		return new Path(scheme + ":" + "//" + authority + pathUri.getPath());
-	}
-
 
 	@Override
 	public void read(DataInputView in) throws IOException {

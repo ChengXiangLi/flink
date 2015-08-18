@@ -193,7 +193,7 @@ public class FileCache {
 					sourceFile = sourceFile.substring(posOfSep + 1);
 				}
 
-				Path target = new Path(tempDirToUse.getAbsolutePath() + "/" + sourceFile);
+				Path target = Path.createPath(tempDirToUse.getAbsolutePath() + "/" + sourceFile);
 
 				// kick off the copying
 				CopyProcess cp = new CopyProcess(entry, target);
@@ -250,7 +250,7 @@ public class FileCache {
 						}
 					}
 					String localPath = targetPath.toString() + distPath.substring(distPath.lastIndexOf("/"));
-					copy(content.getPath(), new Path(localPath), executable);
+					copy(content.getPath(), Path.createPath(localPath), executable);
 				}
 			} else {
 				try {
@@ -310,7 +310,7 @@ public class FileCache {
 		private boolean executable;
 
 		public CopyProcess(DistributedCacheEntry e, Path cachedPath) {
-			this.filePath = new Path(e.filePath);
+			this.filePath = Path.createPath(e.filePath);
 			this.executable = e.isExecutable;
 			this.cachedPath = cachedPath;
 		}

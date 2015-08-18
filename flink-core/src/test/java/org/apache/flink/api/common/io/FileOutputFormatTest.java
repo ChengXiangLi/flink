@@ -101,7 +101,7 @@ public class FileOutputFormatTest {
 
 		// check fail for path with tailing '/'
 		dfof = new DummyFileOutputFormat();
-		dfof.setOutputFilePath(new Path(tmpFilePath+"/"));
+		dfof.setOutputFilePath(new Path(tmpFilePath + "/"));
 		dfof.setWriteMode(WriteMode.NO_OVERWRITE);
 		dfof.setOutputDirectoryMode(OutputDirectoryMode.PARONLY);
 
@@ -220,7 +220,7 @@ public class FileOutputFormatTest {
 
 		// check success for path with tailing '/'
 		dfof = new DummyFileOutputFormat();
-		dfof.setOutputFilePath(new Path(tmpFilePath+'/'));
+		dfof.setOutputFilePath(new Path(tmpFilePath + '/'));
 		dfof.setWriteMode(WriteMode.NO_OVERWRITE);
 		dfof.setOutputDirectoryMode(OutputDirectoryMode.ALWAYS);
 
@@ -330,7 +330,7 @@ public class FileOutputFormatTest {
 
 		// check success for path with tailing '/'
 		dfof = new DummyFileOutputFormat();
-		dfof.setOutputFilePath(new Path(tmpFilePath+"/"));
+		dfof.setOutputFilePath(new Path(tmpFilePath + "/"));
 		dfof.setWriteMode(WriteMode.NO_OVERWRITE);
 		dfof.setOutputDirectoryMode(OutputDirectoryMode.PARONLY);
 
@@ -415,7 +415,7 @@ public class FileOutputFormatTest {
 
 		// check fail for path with tailing '/'
 		dfof = new DummyFileOutputFormat();
-		dfof.setOutputFilePath(new Path(tmpFilePath+"/"));
+		dfof.setOutputFilePath(new Path(tmpFilePath + "/"));
 		dfof.setWriteMode(WriteMode.OVERWRITE);
 		dfof.setOutputDirectoryMode(OutputDirectoryMode.PARONLY);
 
@@ -518,7 +518,7 @@ public class FileOutputFormatTest {
 
 		// check success for path with tailing '/'
 		dfof = new DummyFileOutputFormat();
-		dfof.setOutputFilePath(new Path(tmpFilePath+"/"));
+		dfof.setOutputFilePath(new Path(tmpFilePath + "/"));
 		dfof.setWriteMode(WriteMode.OVERWRITE);
 		dfof.setOutputDirectoryMode(OutputDirectoryMode.ALWAYS);
 
@@ -630,7 +630,7 @@ public class FileOutputFormatTest {
 
 		// check success for path with tailing '/'
 		dfof = new DummyFileOutputFormat();
-		dfof.setOutputFilePath(new Path(tmpFilePath+"/"));
+		dfof.setOutputFilePath(new Path(tmpFilePath + "/"));
 		dfof.setWriteMode(WriteMode.OVERWRITE);
 		dfof.setOutputDirectoryMode(OutputDirectoryMode.PARONLY);
 

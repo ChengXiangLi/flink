@@ -177,7 +177,7 @@ public class FixedLenghtInputFormatTest {
 		
 		dos.close();
 			
-		return new FileInputSplit(0, new Path(this.tempFile.toURI().toString()), 0, this.tempFile.length(), new String[] {"localhost"});
+		return new FileInputSplit(0, Path.createPath(this.tempFile.toURI().toString()), 0, this.tempFile.length(), new String[] {"localhost"});
 	}
 		
 	

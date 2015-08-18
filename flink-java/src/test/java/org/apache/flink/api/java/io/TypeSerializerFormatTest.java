@@ -79,7 +79,7 @@ public class TypeSerializerFormatTest extends SequentialFormatTestBase<Tuple2<In
 				TypeSerializerOutputFormat<Tuple2<Integer, String>>();
 
 		outputFormat.setSerializer(serializer);
-		outputFormat.setOutputFilePath(new Path(path));
+		outputFormat.setOutputFilePath(Path.createPath(path));
 		outputFormat.setWriteMode(FileSystem.WriteMode.OVERWRITE);
 
 		configuration = configuration == null ? new Configuration() : configuration;

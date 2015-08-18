@@ -167,7 +167,7 @@ public class FlinkClient {
 		jarFiles.add(uploadedJarFile);
 
 		final JobGraph jobGraph = topology.getStreamGraph().getJobGraph(name);
-		jobGraph.addJar(new Path(uploadedJarFile.getAbsolutePath()));
+		jobGraph.addJar(Path.createPath(uploadedJarFile.getAbsolutePath()));
 
 		final Configuration configuration = jobGraph.getJobConfiguration();
 

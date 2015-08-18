@@ -34,7 +34,7 @@ public class FileReadFunction implements FlatMapFunction<Tuple3<String, Long, Lo
 
 	@Override
 	public void flatMap(Tuple3<String, Long, Long> value, Collector<String> out) throws Exception {
-		FSDataInputStream stream = FileSystem.get(new URI(value.f0)).open(new Path(value.f0));
+		FSDataInputStream stream = FileSystem.get(new URI(value.f0)).open(Path.createPath(value.f0));
 		stream.seek(value.f1);
 
 		BufferedReader reader = new BufferedReader(new InputStreamReader(stream));

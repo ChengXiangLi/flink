@@ -201,7 +201,7 @@ public abstract class FileSystem {
 				}
 				catch (URISyntaxException e) {
 					try {
-						uri = new URI("file", null, new Path(new File(uri.getPath()).getAbsolutePath()).toUri().getPath(), null);
+						uri = new URI("file", null, new Path(new File(uri.getPath()).getAbsolutePath()).getUri().getPath(), null);
 					} catch (URISyntaxException ex) {
 						// we tried to repair it, but could not. report the scheme error
 						throw new IOException("The file URI '" + uri.toString() + "' is not valid.");

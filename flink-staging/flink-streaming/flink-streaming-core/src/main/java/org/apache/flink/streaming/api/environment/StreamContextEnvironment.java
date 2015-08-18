@@ -73,7 +73,7 @@ public class StreamContextEnvironment extends StreamExecutionEnvironment {
 		}
 
 		for (File file : jars) {
-			jobGraph.addJar(new Path(file.getAbsolutePath()));
+			jobGraph.addJar(Path.createPath(file.getAbsolutePath()));
 		}
 
 		JobSubmissionResult result = client.run(jobGraph, wait);

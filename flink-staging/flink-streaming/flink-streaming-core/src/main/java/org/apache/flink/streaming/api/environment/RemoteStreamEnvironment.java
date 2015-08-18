@@ -109,7 +109,7 @@ public class RemoteStreamEnvironment extends StreamExecutionEnvironment {
 		}
 
 		for (File file : jarFiles) {
-			jobGraph.addJar(new Path(file.getAbsolutePath()));
+			jobGraph.addJar(Path.createPath(file.getAbsolutePath()));
 		}
 
 		Configuration configuration = jobGraph.getJobConfiguration();

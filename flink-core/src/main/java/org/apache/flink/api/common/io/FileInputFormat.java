@@ -361,7 +361,7 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
 				
 		try {
 			final Path path = this.filePath;
-			final FileSystem fs = FileSystem.get(path.toUri());
+			final FileSystem fs = FileSystem.get(path.getUri());
 			
 			return getFileStats(cachedFileStats, path, fs, new ArrayList<FileStatus>(1));
 		} catch (IOException ioex) {
@@ -837,7 +837,7 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
 		@Override
 		public void run() {
 			try {
-				final FileSystem fs = FileSystem.get(this.split.getPath().toUri());
+				final FileSystem fs = FileSystem.get(this.split.getPath().getUri());
 				this.fdis = fs.open(this.split.getPath());
 				
 				// check for canceling and close the stream in that case, because no one will obtain it

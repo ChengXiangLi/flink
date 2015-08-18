@@ -149,7 +149,7 @@ public class AvroRecordInputFormatTest {
 	public void testDeserialisation() throws IOException {
 		Configuration parameters = new Configuration();
 		
-		AvroInputFormat<User> format = new AvroInputFormat<User>(new Path(testFile.getAbsolutePath()), User.class);
+		AvroInputFormat<User> format = new AvroInputFormat<User>(Path.createPath(testFile.getAbsolutePath()), User.class);
 		
 		format.configure(parameters);
 		FileInputSplit[] splits = format.createInputSplits(1);

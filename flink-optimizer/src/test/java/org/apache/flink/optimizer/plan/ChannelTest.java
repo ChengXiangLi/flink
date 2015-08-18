@@ -83,7 +83,7 @@ public class ChannelTest {
 	
 	private static final DataSourceNode getSourceNode() {
 		return new DataSourceNode(new GenericDataSourceBase<String, TextInputFormat>(
-				new TextInputFormat(new Path("/ignored")), 
+				new TextInputFormat(Path.createPath("/ignored")),
 				new OperatorInformation<String>(BasicTypeInfo.STRING_TYPE_INFO),
 				"source"));
 	}

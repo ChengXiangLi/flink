@@ -55,7 +55,7 @@ public class SimpleTweetInputFormatTest {
 
 		File jsonFile = new File("src/main/resources/HashTagTweetSample.json");
 
-		fileInputSplit = new FileInputSplit(0, new Path(jsonFile.getPath()), 0, jsonFile.length(), new String[]{"localhost"});
+		fileInputSplit = new FileInputSplit(0, Path.createPath(jsonFile.getPath()), 0, jsonFile.length(), new String[]{"localhost"});
 	}
 
 	@Test

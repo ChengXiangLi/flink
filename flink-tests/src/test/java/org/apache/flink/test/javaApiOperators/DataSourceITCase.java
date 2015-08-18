@@ -52,7 +52,7 @@ public class DataSourceITCase extends JavaProgramTestBase {
 		Configuration ifConf = new Configuration();
 		ifConf.setString("prepend", "test");
 
-		DataSet<String> ds = env.createInput(new TestInputFormat(new Path(inputPath))).withParameters(ifConf);
+		DataSet<String> ds = env.createInput(new TestInputFormat(Path.createPath(inputPath))).withParameters(ifConf);
 		List<String> result = ds.collect();
 
 		String expectedResult = "ab\n"

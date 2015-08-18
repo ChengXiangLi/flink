@@ -94,7 +94,7 @@ public class HDFSTest {
 	@Test
 	public void testHDFS() {
 
-		Path file = new Path(hdfsURI + hdPath);
+		Path file = Path.createPath(hdfsURI + hdPath);
 		org.apache.hadoop.fs.Path result = new org.apache.hadoop.fs.Path(hdfsURI + "/result");
 		try {
 			FileSystem fs = file.getFileSystem();
@@ -131,7 +131,7 @@ public class HDFSTest {
 
 		org.apache.hadoop.fs.Path result = new org.apache.hadoop.fs.Path(hdfsURI + "/avroTest");
 
-		avroOut.setOutputFilePath(new Path(result.toString()));
+		avroOut.setOutputFilePath(Path.createPath(result.toString()));
 		avroOut.setWriteMode(FileSystem.WriteMode.NO_OVERWRITE);
 		avroOut.setOutputDirectoryMode(FileOutputFormat.OutputDirectoryMode.ALWAYS);
 

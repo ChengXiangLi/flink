@@ -710,7 +710,7 @@ public abstract class StreamExecutionEnvironment {
 	 */
 	public DataStreamSource<String> readTextFile(String filePath) {
 		Preconditions.checkNotNull(filePath, "The file path may not be null.");
-		TextInputFormat format = new TextInputFormat(new Path(filePath));
+		TextInputFormat format = new TextInputFormat(Path.createPath(filePath));
 		TypeInformation<String> typeInfo = BasicTypeInfo.STRING_TYPE_INFO;
 
 		return createInput(format, typeInfo, "Read Text File Source");
@@ -728,7 +728,7 @@ public abstract class StreamExecutionEnvironment {
 	 */
 	public DataStreamSource<String> readTextFile(String filePath, String charsetName) {
 		Preconditions.checkNotNull(filePath, "The file path may not be null.");
-		TextInputFormat format = new TextInputFormat(new Path(filePath));
+		TextInputFormat format = new TextInputFormat(Path.createPath(filePath));
 		TypeInformation<String> typeInfo = BasicTypeInfo.STRING_TYPE_INFO;
 		format.setCharsetName(charsetName);
 
@@ -750,7 +750,7 @@ public abstract class StreamExecutionEnvironment {
 	 */
 	public DataStreamSource<StringValue> readTextFileWithValue(String filePath) {
 		Preconditions.checkNotNull(filePath, "The file path may not be null.");
-		TextValueInputFormat format = new TextValueInputFormat(new Path(filePath));
+		TextValueInputFormat format = new TextValueInputFormat(Path.createPath(filePath));
 		TypeInformation<StringValue> typeInfo = new ValueTypeInfo<StringValue>(StringValue.class);
 
 		return createInput(format, typeInfo, "Read Text File with Value " +
@@ -778,7 +778,7 @@ public abstract class StreamExecutionEnvironment {
 			skipInvalidLines) {
 		Preconditions.checkNotNull(filePath, "The file path may not be null.");
 
-		TextValueInputFormat format = new TextValueInputFormat(new Path(filePath));
+		TextValueInputFormat format = new TextValueInputFormat(Path.createPath(filePath));
 		TypeInformation<StringValue> typeInfo = new ValueTypeInfo<StringValue>(StringValue.class);
 		format.setCharsetName(charsetName);
 		format.setSkipInvalidLines(skipInvalidLines);
@@ -801,7 +801,7 @@ public abstract class StreamExecutionEnvironment {
 		Preconditions.checkNotNull(inputFormat, "InputFormat must not be null.");
 		Preconditions.checkNotNull(filePath, "The file path must not be null.");
 
-		inputFormat.setFilePath(new Path(filePath));
+		inputFormat.setFilePath(Path.createPath(filePath));
 		try {
 			return createInput(inputFormat, TypeExtractor.getInputFormatTypes(inputFormat), "Read File source");
 		} catch (Exception e) {
@@ -825,7 +825,7 @@ public abstract class StreamExecutionEnvironment {
 	 */
 	public <OUT> DataStreamSource<OUT> readFileOfPrimitives(String filePath, Class<OUT> typeClass) {
 		Preconditions.checkNotNull(filePath, "The file path may not be null.");
-		PrimitiveInputFormat<OUT> inputFormat = new PrimitiveInputFormat<OUT>(new Path(filePath), typeClass);
+		PrimitiveInputFormat<OUT> inputFormat = new PrimitiveInputFormat<OUT>(Path.createPath(filePath), typeClass);
 		TypeInformation<OUT> typeInfo = TypeExtractor.getForClass(typeClass);
 
 		return createInput(inputFormat, typeInfo, "Read File of Primitives source");
@@ -846,7 +846,7 @@ public abstract class StreamExecutionEnvironment {
 	 */
 	public <OUT> DataStreamSource<OUT> readFileOfPrimitives(String filePath, String delimiter, Class<OUT> typeClass) {
 		Preconditions.checkNotNull(filePath, "The file path may not be null.");
-		PrimitiveInputFormat<OUT> inputFormat = new PrimitiveInputFormat<OUT>(new Path(filePath), delimiter,
+		PrimitiveInputFormat<OUT> inputFormat = new PrimitiveInputFormat<OUT>(Path.createPath(filePath), delimiter,
 				typeClass);
 		TypeInformation<OUT> typeInfo = TypeExtractor.getForClass(typeClass);
 

@@ -123,8 +123,8 @@ public class BoltTokenizerWordCountPojo {
 			// read the text file from given input path
 			TypeInformation<Sentence> sourceType = TypeExtractor
 					.getForObject(new Sentence(""));
-			return env.createInput(new CsvInputFormat<Sentence>(new Path(
-					textPath), CsvInputFormat.DEFAULT_LINE_DELIMITER,
+			return env.createInput(new CsvInputFormat<Sentence>(Path.createPath(
+							textPath), CsvInputFormat.DEFAULT_LINE_DELIMITER,
 					CsvInputFormat.DEFAULT_LINE_DELIMITER, sourceType),
 					sourceType);
 		}

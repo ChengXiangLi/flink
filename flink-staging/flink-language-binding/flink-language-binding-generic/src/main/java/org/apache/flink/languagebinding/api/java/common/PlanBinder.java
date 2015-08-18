@@ -245,7 +245,7 @@ public abstract class PlanBinder<INFO extends OperationInfo> {
 		String fieldDelimiter = (String) receiver.getRecord();
 		String lineDelimiter = (String) receiver.getRecord();
 		Tuple types = (Tuple) receiver.getRecord();
-		sets.put(id, env.createInput(new CsvInputFormat(new Path(path), lineDelimiter, fieldDelimiter, getForObject(types)), getForObject(types)).name("CsvSource"));
+		sets.put(id, env.createInput(new CsvInputFormat(Path.createPath(path), lineDelimiter, fieldDelimiter, getForObject(types)), getForObject(types)).name("CsvSource"));
 	}
 
 	private void createTextSource() throws IOException {

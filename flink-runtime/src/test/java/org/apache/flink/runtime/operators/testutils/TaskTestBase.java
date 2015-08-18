@@ -111,7 +111,7 @@ public abstract class TaskTestBase {
 	public void registerFileOutputTask(AbstractInvokable outTask, FileOutputFormat outputFormat, String outPath) {
 		TaskConfig dsConfig = new TaskConfig(this.mockEnv.getTaskConfiguration());
 		
-		outputFormat.setOutputFilePath(new Path(outPath));
+		outputFormat.setOutputFilePath(Path.createPath(outPath));
 		outputFormat.setWriteMode(WriteMode.OVERWRITE);
 
 		dsConfig.setStubWrapper(new UserCodeObjectWrapper<FileOutputFormat>(outputFormat));

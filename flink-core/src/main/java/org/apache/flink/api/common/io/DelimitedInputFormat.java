@@ -289,7 +289,7 @@ public abstract class DelimitedInputFormat<OT> extends FileInputFormat<OT> {
 			final Path filePath = this.filePath;
 		
 			// get the filesystem
-			final FileSystem fs = FileSystem.get(filePath.toUri());
+			final FileSystem fs = FileSystem.get(filePath.getUri());
 			final ArrayList<FileStatus> allFiles = new ArrayList<FileStatus>(1);
 			
 			// let the file input format deal with the up-to-date check and the basic size
