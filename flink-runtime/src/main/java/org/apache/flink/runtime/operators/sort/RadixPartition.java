@@ -22,10 +22,7 @@ import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.core.memory.MemorySegment;
 import org.apache.flink.core.memory.MemorySegmentSource;
 import org.apache.flink.core.memory.SeekableDataInputView;
-import org.apache.flink.runtime.io.disk.iomanager.BlockChannelReader;
-import org.apache.flink.runtime.io.disk.iomanager.BlockChannelWriter;
-import org.apache.flink.runtime.io.disk.iomanager.ChannelReaderInputView;
-import org.apache.flink.runtime.io.disk.iomanager.IOManager;
+import org.apache.flink.runtime.io.disk.iomanager.*;
 import org.apache.flink.runtime.memorymanager.AbstractPagedInputView;
 import org.apache.flink.runtime.memorymanager.AbstractPagedOutputView;
 import org.apache.flink.runtime.util.MathUtils;
@@ -35,7 +32,6 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.LinkedBlockingQueue;
 
 public class RadixPartition<T> {
 	private final TypeSerializer<T> typeSerializer;
@@ -72,9 +68,9 @@ public class RadixPartition<T> {
 		return this.minKey;
 	}
 
-	public void flush(BlockChannelWriter<MemorySegment> flushedChannel) throws IOException {
+	public int flush(BlockChannelWriter<MemorySegment> flushedChannel) throws IOException {
 		this.flushedChannel = flushedChannel;
-		this.writeBuffer.spill(flushedChannel);
+		return this.writeBuffer.spill(flushedChannel);
 	}
 
 	public boolean isInMemory() {
@@ -90,21 +86,32 @@ public class RadixPartition<T> {
 			final RadixReaderBuffer radixReaderBuffer = new RadixReaderBuffer(this.writeBuffer);
 			return new PartitionIterator(radixReaderBuffer, typeSerializer);
 		} else {
-			LinkedBlockingQueue<MemorySegment> returnQueue = new LinkedBlockingQueue<>();
-			BlockChannelReader<MemorySegment> channelReader = this.ioManager.createBlockChannelReader(this.flushedChannel.getChannelID(), returnQueue);
+			this.writeBuffer.close();
+			queue.addWriteBehindBuffersAvailable(1);
+			BlockChannelReader<MemorySegment> channelReader = this.ioManager.createBlockChannelReader(this
+					.flushedChannel.getChannelID());
 
-			ChannelReaderInputView inView = new ChannelReaderInputView(channelReader, availableMemory, false);
+			final List<MemorySegment> segments = new ArrayList<>(2);
+			segments.add(forceGetNextBuffer());
+			segments.add(forceGetNextBuffer());
+			final ChannelReaderInputView inView = new HeaderlessChannelReaderInputView(channelReader, segments,
+					this.writeBuffer.getCurrentBlockNumber(), this.writeBuffer.getCurrentPositionInSegment(), false);
+
+
 			return new SpilledPartitionIterator(inView, typeSerializer);
 		}
 	}
-
+	
 	/**
 	 * Clean all the data.
 	 */
 	public void reset() {
-		for (MemorySegment segment : this.writeBuffer.getSegments()) {
-			this.availableMemory.add(segment);
+		if (isInMemory()) {
+			for (MemorySegment segment : this.writeBuffer.getSegments()) {
+				this.availableMemory.add(segment);
+			}
 		}
+		
 		this.elementCount = 0;
 		this.minKey = Integer.MAX_VALUE;
 		this.writeBuffer = new RadixWriteBuffer(forceGetNextBuffer(), getMemSource());
@@ -123,19 +130,18 @@ public class RadixPartition<T> {
 	 * Clean all the data and resources.
 	 */
 	public void close() {
-		for (MemorySegment segment : this.writeBuffer.getSegments()) {
-			this.availableMemory.add(segment);
+		if (isInMemory()) {
+			for (MemorySegment segment : this.writeBuffer.getSegments()) {
+				this.availableMemory.add(segment);
+			}
 		}
 		this.elementCount = 0;
 		this.minKey = Integer.MAX_VALUE;
-		this.writeBuffer = null;
-		if (!isInMemory()) {
-			try {
-				this.flushedChannel.close();
-			} catch (IOException e) {
-				// TODO handle exception.
-			}
-			this.flushedChannel = null;
+		try {
+			this.writeBuffer.close();
+		} catch (IOException e) {
+			// TODO
+			throw new RuntimeException("failed to close writer");
 		}
 	}
 
@@ -174,6 +180,8 @@ public class RadixPartition<T> {
 		private final List<MemorySegment> targetList;
 		private final MemorySegmentSource memSource;
 		private BlockChannelWriter<MemorySegment> writer;
+		private int currentBlockNumber;
+		private boolean closed = false;
 
 
 		private RadixWriteBuffer(MemorySegment initialSegment, MemorySegmentSource memSource) {
@@ -182,6 +190,7 @@ public class RadixPartition<T> {
 			this.targetList = new ArrayList<>();
 			this.targetList.add(initialSegment);
 			this.memSource = memSource;
+			this.currentBlockNumber = 1;
 		}
 
 		@Override
@@ -199,13 +208,14 @@ public class RadixPartition<T> {
 				}
 			}
 
+			this.currentBlockNumber++;
 			return next;
 		}
 
 		int spill(BlockChannelWriter<MemorySegment> writer) throws IOException {
 			this.writer = writer;
 			final int numSegments = this.targetList.size();
-			for (int i = 0; i < numSegments - 1; i++) {
+			for (int i = 0; i < numSegments; i++) {
 				writer.writeBlock(this.targetList.get(i));
 			}
 			this.targetList.clear();
@@ -217,16 +227,26 @@ public class RadixPartition<T> {
 		}
 
 		void close() throws IOException {
+			if (closed) {
+				return;
+			}
 			final MemorySegment current = getCurrentSegment();
 			if (current == null) {
-				throw new IllegalStateException("Illegal State in HashPartition: No current buffer when finilizing build side.");
+				throw new IllegalStateException("Illegal State in RadixPartition: No current buffer when finalizing " +
+						"build side.");
 			}
 			if (this.writer == null) {
 				this.targetList.clear();
 			} else {
 				this.writer.writeBlock(current);
+				this.writer.close();
 			}
 			clear();
+			closed = true;
+		}
+		
+		int getCurrentBlockNumber() {
+			return this.currentBlockNumber;
 		}
 	}
 
@@ -324,9 +344,11 @@ public class RadixPartition<T> {
 				T result = this.typeSerializer.deserialize(this.inView);
 				return Pair.of(key, result);
 			} catch (EOFException eofex) {
-				final List<MemorySegment> freeMem = this.inView.close();
-				if (availableMemory != null) {
-					availableMemory.addAll(freeMem);
+				if (!this.inView.isClosed()) {
+					final List<MemorySegment> freeMem = this.inView.close();
+					if (availableMemory != null) {
+						availableMemory.addAll(freeMem);
+					}
 				}
 				return null;
 			}

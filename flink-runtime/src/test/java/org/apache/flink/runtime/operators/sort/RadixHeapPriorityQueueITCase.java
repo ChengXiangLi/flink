@@ -36,7 +36,7 @@ import java.util.PriorityQueue;
 
 public class RadixHeapPriorityQueueITCase {
 
-	private static final int MEMORY_SIZE = 1024 * 1024 * 4;
+	private static final int MEMORY_SIZE = 1024 * 1120;
 
 	private static final int MEMORY_PAGE_SIZE = 32 * 1024;
 
@@ -74,9 +74,22 @@ public class RadixHeapPriorityQueueITCase {
 
 		try {
 			long start = System.currentTimeMillis();
-			for (int i=0; i<1024*1024; i++) {
-				heap.insert(i, i + "hahahehe");
+			int strSize = 15 * 1024;
+			byte[] strBytes = new byte[strSize];
+			for (int i=0; i< strSize; i++) {
+				strBytes[i] = 97;
 			}
+			heap.insert(0, 0 + new String(strBytes));
+			heap.insert(1, 1 + new String(strBytes));
+			heap.insert(2, 21 + new String(strBytes));
+			heap.insert(2, 22 + new String(strBytes));
+			heap.insert(2, 23 + new String(strBytes));
+			heap.insert(2, 24 + new String(strBytes));
+			heap.insert(2, 25 + new String(strBytes));
+			heap.insert(2, 26 + new String(strBytes));
+			heap.insert(2, 26 + new String(strBytes));
+			heap.insert(2, 26 + new String(strBytes));
+			heap.insert(2, 26 + new String(strBytes));
 			System.out.println(memory.size());
 			long inserted = System.currentTimeMillis();
 			System.out.println("insert cost ["+(inserted - start)+"]ms");
@@ -84,11 +97,29 @@ public class RadixHeapPriorityQueueITCase {
 			int count = 0;
 			while (result != null) {
 				count++;
+				System.out.println(result);
 				result = heap.poll();
 			}
 			System.out.println(count);
 			long end = System.currentTimeMillis() - inserted;
-			System.out.println("poll cost ["+end+"]ms");
+			System.out.println("poll cost [" + end + "]ms");
+
+			heap.insert(3, 3 + new String(strBytes));
+			heap.insert(4, 22 + new String(strBytes));
+			heap.insert(5, 5 + new String(strBytes));
+			heap.insert(8, 8 + new String(strBytes));
+			heap.insert(9, 9 + new String(strBytes));
+			heap.insert(17, 17 + new String(strBytes));
+			heap.insert(18, 18 + new String(strBytes));
+			heap.insert(19, 19 + new String(strBytes));
+			heap.insert(20, 20 + new String(strBytes));
+
+			result = heap.poll();
+			while (result != null) {
+				System.out.println(result);
+				result = heap.poll();
+			}
+			
 		} catch (Exception e) {
 			throw e;
 		} finally {

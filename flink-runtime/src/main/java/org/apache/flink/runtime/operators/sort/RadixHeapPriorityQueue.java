@@ -80,6 +80,8 @@ public class RadixHeapPriorityQueue<T> {
 	private T currentValue;
 
 	private int currentBucketIndex = 0;
+	private int writeBehindBuffersAvailable = 0;
+	private int numWriteBehindBuffers;
 
 	private MutableObjectIterator<Pair<Integer, T>> currentPartitionIterator;
 
@@ -93,6 +95,10 @@ public class RadixHeapPriorityQueue<T> {
 		this.radixPartitions = new RadixPartition[BUCKET_NUMBER];
 		this.currentEnumerator = this.ioManager.createChannelEnumerator();
 		this.writeBehindBuffers = new LinkedBlockingQueue<>();
+		numWriteBehindBuffers = getNumWriteBehindBuffers(availableMemory.size());
+		for (int i = 0; i < numWriteBehindBuffers; i++) {
+			this.writeBehindBuffers.add(getNextBuffer());
+		}
 		initiateRadixPartitions();
 	}
 
@@ -121,7 +127,7 @@ public class RadixHeapPriorityQueue<T> {
 			currentBucketIndex++;
 			for (int i = currentBucketIndex; i < BUCKET_NUMBER; i++) {
 				if (radixPartitions[i].getElementCount() == 1) {
-					currentPartitionIterator =radixPartitions[i].getPartitionIterator();
+					currentPartitionIterator = radixPartitions[i].getPartitionIterator();
 					currentBucketIndex = i;
 					break;
 				}
@@ -155,23 +161,57 @@ public class RadixHeapPriorityQueue<T> {
 	public int spillPartition() throws IOException {
 		int maxCount = 0;
 		int index = 0;
-		for(int i=0; i<BUCKET_NUMBER; i++) {
-			if (radixPartitions[i].getElementCount() > maxCount) {
+		for (int i = 0; i < BUCKET_NUMBER; i++) {
+			if (radixPartitions[i].getElementCount() > maxCount && radixPartitions[i].isInMemory()) {
 				maxCount = radixPartitions[i].getElementCount();
 				index = i;
 			}
 		}
 
-		radixPartitions[index].flush(ioManager.createBlockChannelWriter(currentEnumerator.next(), writeBehindBuffers));
+		int freeSegments = radixPartitions[index].flush(ioManager.createBlockChannelWriter(currentEnumerator.next(), 
+				writeBehindBuffers));
+		
+		this.writeBehindBuffersAvailable += freeSegments;
+		MemorySegment currBuff;
+		while (this.writeBehindBuffersAvailable > 0 && (currBuff = this.writeBehindBuffers.poll()) != null) {
+			this.availableMemory.add(currBuff);
+			this.writeBehindBuffersAvailable--;
+		}
 		return index;
 	}
 
 	public MemorySegment getNextBuffer() {
 		if (this.availableMemory.size() > 0) {
 			return this.availableMemory.remove(this.availableMemory.size() - 1);
+		}
+
+		// check if there are write behind buffers that actually are to be used for the hash table
+		if (this.writeBehindBuffersAvailable > 0) {
+			// grab at least one, no matter what
+			MemorySegment toReturn;
+			try {
+				toReturn = this.writeBehindBuffers.take();
+			}
+			catch (InterruptedException iex) {
+				throw new RuntimeException("PriorityQueue was interrupted while taking a buffer.");
+			}
+			this.writeBehindBuffersAvailable--;
+
+			// grab as many more buffers as are available directly
+			MemorySegment currBuff;
+			while (this.writeBehindBuffersAvailable > 0 && (currBuff = this.writeBehindBuffers.poll()) != null) {
+				this.availableMemory.add(currBuff);
+				this.writeBehindBuffersAvailable--;
+			}
+			return toReturn;
 		} else {
+			// no memory available
 			return null;
 		}
+	}
+	
+	public void addWriteBehindBuffersAvailable(int appendNumber) {
+		this.writeBehindBuffersAvailable += appendNumber;
 	}
 
 	// Read key value from RadixPartition, get the min key as the deleteMin, and insert key value again.
@@ -215,9 +255,33 @@ public class RadixHeapPriorityQueue<T> {
 		}
 	}
 
+	/**
+	 * Determines the number of buffers to be used for asynchronous write behind. It is currently
+	 * computed as the logarithm of the number of buffers to the base 4, rounded up, minus 2.
+	 * The upper limit for the number of write behind buffers is however set to six.
+	 *
+	 * @param numBuffers The number of available buffers.
+	 * @return The number
+	 */
+	public static int getNumWriteBehindBuffers(int numBuffers) {
+		int numIOBufs = (int) (Math.log(numBuffers) / Math.log(4) - 1.5);
+		return numIOBufs > 6 ? 6 : numIOBufs;
+	}
+
 	public void close() {
 		for (int i = 0; i < BUCKET_NUMBER; i++) {
 			radixPartitions[i].close();
 		}
+
+		// return the write-behind buffers
+		for (int i = 0; i < this.numWriteBehindBuffers + this.writeBehindBuffersAvailable; i++) {
+			try {
+				this.availableMemory.add(this.writeBehindBuffers.take());
+			}
+			catch (InterruptedException iex) {
+				throw new RuntimeException("Hashtable closing was interrupted");
+			}
+		}
+		this.writeBehindBuffersAvailable = 0;
 	}
 }
