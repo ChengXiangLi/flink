@@ -17,6 +17,7 @@
  */
 package org.apache.flink.runtime.operators.sort;
 
+import com.google.common.base.Preconditions;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.flink.api.common.typeutils.TypeComparator;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
@@ -27,6 +28,7 @@ import org.apache.flink.util.MutableObjectIterator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * @param <T>
@@ -63,6 +65,8 @@ public class RadixHeapPriorityQueue<T> {
 	 */
 	protected final IOManager ioManager;
 
+	protected final LinkedBlockingQueue<MemorySegment> writeBehindBuffers;
+
 	/**
 	 * The channel enumerator that is used while processing the current partition to create
 	 * channels for the spill partitions it requires.
@@ -80,18 +84,21 @@ public class RadixHeapPriorityQueue<T> {
 	private MutableObjectIterator<Pair<Integer, T>> currentPartitionIterator;
 
 	public RadixHeapPriorityQueue(TypeSerializer<T> typeSerializer, TypeComparator<T> typeComparator, List<MemorySegment> availableMemory, IOManager ioManager) {
+		Preconditions.checkArgument(availableMemory != null, "availableMemory can not be null.");
+		Preconditions.checkArgument(availableMemory.size() >= 33, "RadixHeapPriorityQueue requires at least 33 segments.");
 		this.typeSerializer = typeSerializer;
 		this.typeComparator = typeComparator;
 		this.availableMemory = availableMemory;
 		this.ioManager = ioManager;
-		this.currentEnumerator = this.ioManager.createChannelEnumerator();
 		this.radixPartitions = new RadixPartition[BUCKET_NUMBER];
+		this.currentEnumerator = this.ioManager.createChannelEnumerator();
+		this.writeBehindBuffers = new LinkedBlockingQueue<>();
 		initiateRadixPartitions();
 	}
 
 	private void initiateRadixPartitions() {
 		for (int i = 0; i < BUCKET_NUMBER; i++) {
-			radixPartitions[i] = new RadixPartition<T>(this.typeSerializer, this.availableMemory);
+			radixPartitions[i] = new RadixPartition<>(this.typeSerializer, this.availableMemory, this.ioManager, this);
 		}
 	}
 
@@ -143,6 +150,28 @@ public class RadixHeapPriorityQueue<T> {
 			currentValue = next();
 		}
 		return currentValue;
+	}
+
+	public int spillPartition() throws IOException {
+		int maxCount = 0;
+		int index = 0;
+		for(int i=0; i<BUCKET_NUMBER; i++) {
+			if (radixPartitions[i].getElementCount() > maxCount) {
+				maxCount = radixPartitions[i].getElementCount();
+				index = i;
+			}
+		}
+
+		radixPartitions[index].flush(ioManager.createBlockChannelWriter(currentEnumerator.next(), writeBehindBuffers));
+		return index;
+	}
+
+	public MemorySegment getNextBuffer() {
+		if (this.availableMemory.size() > 0) {
+			return this.availableMemory.remove(this.availableMemory.size() - 1);
+		} else {
+			return null;
+		}
 	}
 
 	// Read key value from RadixPartition, get the min key as the deleteMin, and insert key value again.

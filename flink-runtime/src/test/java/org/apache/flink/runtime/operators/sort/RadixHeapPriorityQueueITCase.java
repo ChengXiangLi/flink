@@ -36,7 +36,7 @@ import java.util.PriorityQueue;
 
 public class RadixHeapPriorityQueueITCase {
 
-	private static final int MEMORY_SIZE = 1024 * 1024 * 64;
+	private static final int MEMORY_SIZE = 1024 * 1024 * 4;
 
 	private static final int MEMORY_PAGE_SIZE = 32 * 1024;
 
@@ -74,32 +74,21 @@ public class RadixHeapPriorityQueueITCase {
 
 		try {
 			long start = System.currentTimeMillis();
-			for (int i=0; i<1024; i++) {
-				heap.insert(i, i + "hahsdkfjeifalkhahsdkfjeifalksjdfioeoalsdjkfeiflasjedfiehahsdkfjeifalksjdfioeoalsdjkfeiflasjedfiehahsdkfjeifalksjdfioeoalsdjkfeiflasjedfiehahsdkfjeifalksjdfioeoalsdjkfeiflasjedfiesjdfioeoalsdjkfeiflasjedfie");
+			for (int i=0; i<1024*1024; i++) {
+				heap.insert(i, i + "hahahehe");
 			}
 			System.out.println(memory.size());
 			long inserted = System.currentTimeMillis();
 			System.out.println("insert cost ["+(inserted - start)+"]ms");
 			String result = heap.poll();
 			int count = 0;
-			while (result != null && count <100) {
+			while (result != null) {
 				count++;
 				result = heap.poll();
 			}
 			System.out.println(count);
 			long end = System.currentTimeMillis() - inserted;
 			System.out.println("poll cost ["+end+"]ms");
-
-			for (int i=0; i<1024; i++) {
-				heap.insert(i, i + "hahsdkfjeifalkhahsdkfjeifalksjdfioeoalsdjkfeiflasjedfiehahsdkfjeifalksjdfioeoalsdjkfeiflasjedfiehahsdkfjeifalksjdfioeoalsdjkfeiflasjedfiehahsdkfjeifalksjdfioeoalsdjkfeiflasjedfiesjdfioeoalsdjkfeiflasjedfie");
-			}
-			result = heap.poll();
-			count = 0;
-			while (result != null && count <100) {
-				count++;
-				result = heap.poll();
-			}
-			System.out.println(count);
 		} catch (Exception e) {
 			throw e;
 		} finally {
@@ -114,8 +103,8 @@ public class RadixHeapPriorityQueueITCase {
 
 		try {
 			long start = System.currentTimeMillis();
-			for (int i=0; i<204800; i++) {
-				Pair pair = new Pair(i, i + "hahsdkfjeifalkhahsdkfjeifalksjdfioeoalsdjkfeiflasjedfiehahsdkfjeifalksjdfioeoalsdjkfeiflasjedfiehahsdkfjeifalksjdfioeoalsdjkfeiflasjedfiehahsdkfjeifalksjdfioeoalsdjkfeiflasjedfiesjdfioeoalsdjkfeiflasjedfie");
+			for (int i=0; i<2048000; i++) {
+				Pair pair = new Pair(i, i + "hahahehe");
 				heap.add(pair);
 			}
 			long inserted = System.currentTimeMillis();

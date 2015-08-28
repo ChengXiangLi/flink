@@ -22,6 +22,10 @@ import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.core.memory.MemorySegment;
 import org.apache.flink.core.memory.MemorySegmentSource;
 import org.apache.flink.core.memory.SeekableDataInputView;
+import org.apache.flink.runtime.io.disk.iomanager.BlockChannelReader;
+import org.apache.flink.runtime.io.disk.iomanager.BlockChannelWriter;
+import org.apache.flink.runtime.io.disk.iomanager.ChannelReaderInputView;
+import org.apache.flink.runtime.io.disk.iomanager.IOManager;
 import org.apache.flink.runtime.memorymanager.AbstractPagedInputView;
 import org.apache.flink.runtime.memorymanager.AbstractPagedOutputView;
 import org.apache.flink.runtime.util.MathUtils;
@@ -31,22 +35,31 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.LinkedBlockingQueue;
 
 public class RadixPartition<T> {
 	private final TypeSerializer<T> typeSerializer;
 	private final List<MemorySegment> availableMemory;
+	private final IOManager ioManager;
+	private BlockChannelWriter<MemorySegment> flushedChannel;
 	private RadixWriteBuffer writeBuffer;
+	private RadixHeapPriorityQueue<T> queue;
 
 	private int minKey = Integer.MAX_VALUE;
 	private int elementCount = 0;
 
-	public RadixPartition(TypeSerializer<T> typeSerializer, List<MemorySegment> availableMemory) {
+	public RadixPartition(TypeSerializer<T> typeSerializer, List<MemorySegment> availableMemory, IOManager ioManager, RadixHeapPriorityQueue<T> queue) {
 		this.typeSerializer = typeSerializer;
 		this.availableMemory = availableMemory;
+		this.ioManager = ioManager;
+		this.queue = queue;
 		this.writeBuffer = new RadixWriteBuffer(forceGetNextBuffer(), getMemSource());
 	}
 
 	public void insert(int key, T value) throws IOException {
+		if (key == 179361) {
+			System.out.print("heh");
+		}
 		this.writeBuffer.writeInt(key);
 		this.typeSerializer.serialize(value, this.writeBuffer);
 		elementCount++;
@@ -59,7 +72,13 @@ public class RadixPartition<T> {
 		return this.minKey;
 	}
 
-	public void flush() {
+	public void flush(BlockChannelWriter<MemorySegment> flushedChannel) throws IOException {
+		this.flushedChannel = flushedChannel;
+		this.writeBuffer.spill(flushedChannel);
+	}
+
+	public boolean isInMemory() {
+		return this.flushedChannel == null;
 	}
 
 	public int getElementCount() {
@@ -67,8 +86,16 @@ public class RadixPartition<T> {
 	}
 
 	public MutableObjectIterator<Pair<Integer, T>> getPartitionIterator() throws IOException {
-		final RadixReaderBuffer radixReaderBuffer = new RadixReaderBuffer(this.writeBuffer);
-		return new PartitionIterator(radixReaderBuffer, typeSerializer);
+		if (isInMemory()) {
+			final RadixReaderBuffer radixReaderBuffer = new RadixReaderBuffer(this.writeBuffer);
+			return new PartitionIterator(radixReaderBuffer, typeSerializer);
+		} else {
+			LinkedBlockingQueue<MemorySegment> returnQueue = new LinkedBlockingQueue<>();
+			BlockChannelReader<MemorySegment> channelReader = this.ioManager.createBlockChannelReader(this.flushedChannel.getChannelID(), returnQueue);
+
+			ChannelReaderInputView inView = new ChannelReaderInputView(channelReader, availableMemory, false);
+			return new SpilledPartitionIterator(inView, typeSerializer);
+		}
 	}
 
 	/**
@@ -81,6 +108,15 @@ public class RadixPartition<T> {
 		this.elementCount = 0;
 		this.minKey = Integer.MAX_VALUE;
 		this.writeBuffer = new RadixWriteBuffer(forceGetNextBuffer(), getMemSource());
+
+		if (!isInMemory()) {
+			try {
+				this.flushedChannel.close();
+			} catch (IOException e) {
+				// TODO handle exception.
+			}
+			this.flushedChannel = null;
+		}
 	}
 
 	/**
@@ -93,6 +129,14 @@ public class RadixPartition<T> {
 		this.elementCount = 0;
 		this.minKey = Integer.MAX_VALUE;
 		this.writeBuffer = null;
+		if (!isInMemory()) {
+			try {
+				this.flushedChannel.close();
+			} catch (IOException e) {
+				// TODO handle exception.
+			}
+			this.flushedChannel = null;
+		}
 	}
 
 	private MemorySegmentSource getMemSource() {
@@ -105,24 +149,31 @@ public class RadixPartition<T> {
 	}
 
 	private MemorySegment forceGetNextBuffer() {
-		// TODO if none memory available, try spill partition.
-		return getNextBuffer();
-	}
+		MemorySegment segment = queue.getNextBuffer();
+		if (segment == null) {
+			try {
+				queue.spillPartition();
+				segment = queue.getNextBuffer();
+			} catch (IOException e) {
+				throw new RuntimeException("Failed to spill partition.");
+				//TODO
+			}
 
-	private MemorySegment getNextBuffer() {
-		if (this.availableMemory.size() > 0) {
-			return this.availableMemory.remove(this.availableMemory.size() - 1);
-		} else {
-			return null;
+			if (segment == null) {
+				throw new RuntimeException("Failed to get segment after spill partition.");
+				//TODO
+			}
 		}
+
+		return segment;
 	}
 
 	// ============================================================================================
 
 	protected static final class RadixWriteBuffer extends AbstractPagedOutputView {
 		private final List<MemorySegment> targetList;
-
 		private final MemorySegmentSource memSource;
+		private BlockChannelWriter<MemorySegment> writer;
 
 
 		private RadixWriteBuffer(MemorySegment initialSegment, MemorySegmentSource memSource) {
@@ -133,18 +184,49 @@ public class RadixPartition<T> {
 			this.memSource = memSource;
 		}
 
-
 		@Override
 		protected MemorySegment nextSegment(MemorySegment current, int bytesUsed) throws IOException {
-			final MemorySegment next;
-			next = this.memSource.nextSegment();
-			this.targetList.add(next);
+			MemorySegment next = null;
+			if (this.writer == null) {
+				next = this.memSource.nextSegment();
+				this.targetList.add(next);
+			} else {
+				this.writer.writeBlock(current);
+				try {
+					next = this.writer.getReturnQueue().take();
+				} catch (InterruptedException e) {
+					// TODO
+				}
+			}
 
 			return next;
 		}
 
+		int spill(BlockChannelWriter<MemorySegment> writer) throws IOException {
+			this.writer = writer;
+			final int numSegments = this.targetList.size();
+			for (int i = 0; i < numSegments - 1; i++) {
+				writer.writeBlock(this.targetList.get(i));
+			}
+			this.targetList.clear();
+			return numSegments;
+		}
+
 		List<MemorySegment> getSegments() {
 			return targetList;
+		}
+
+		void close() throws IOException {
+			final MemorySegment current = getCurrentSegment();
+			if (current == null) {
+				throw new IllegalStateException("Illegal State in HashPartition: No current buffer when finilizing build side.");
+			}
+			if (this.writer == null) {
+				this.targetList.clear();
+			} else {
+				this.writer.writeBlock(current);
+			}
+			clear();
 		}
 	}
 
@@ -215,6 +297,37 @@ public class RadixPartition<T> {
 				T result = this.typeSerializer.deserialize(this.readerBuffer);
 				return Pair.of(key, result);
 			} catch (EOFException eofex) {
+				return null;
+			}
+		}
+	}
+
+	final class SpilledPartitionIterator<T> implements MutableObjectIterator<Pair<Integer, T>> {
+
+		private final ChannelReaderInputView inView;
+		private final TypeSerializer<T> typeSerializer;
+
+		private SpilledPartitionIterator(ChannelReaderInputView inView, TypeSerializer<T> typeSerializer) {
+			this.inView = inView;
+			this.typeSerializer = typeSerializer;
+		}
+
+		@Override
+		public Pair<Integer, T> next(Pair<Integer, T> reuse) throws IOException {
+			return next();
+		}
+
+		@Override
+		public Pair<Integer, T> next() throws IOException {
+			try {
+				int key = this.inView.readInt();
+				T result = this.typeSerializer.deserialize(this.inView);
+				return Pair.of(key, result);
+			} catch (EOFException eofex) {
+				final List<MemorySegment> freeMem = this.inView.close();
+				if (availableMemory != null) {
+					availableMemory.addAll(freeMem);
+				}
 				return null;
 			}
 		}
