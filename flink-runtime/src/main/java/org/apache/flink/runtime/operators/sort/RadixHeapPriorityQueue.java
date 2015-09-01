@@ -35,25 +35,12 @@ import java.util.concurrent.LinkedBlockingQueue;
  */
 public class RadixHeapPriorityQueue<T> {
 
-	// ------------------------------------------------------------------------
-	//                              Constants
-	// ------------------------------------------------------------------------
-
 	private final static int BUCKET_NUMBER = 33;
-
-	// ------------------------------------------------------------------------
-	//                              Members
-	// ------------------------------------------------------------------------
 
 	/**
 	 * The utilities to serialize the build side data types.
 	 */
 	protected final TypeSerializer<T> typeSerializer;
-
-	/**
-	 * The utilities to hash and compare the probe side data types.
-	 */
-	private final TypeComparator<T> typeComparator;
 
 	/**
 	 * The free memory segments currently available to the hash join.
@@ -82,14 +69,14 @@ public class RadixHeapPriorityQueue<T> {
 	private int currentBucketIndex = 0;
 	private int writeBehindBuffersAvailable = 0;
 	private int numWriteBehindBuffers;
+	private boolean closed = false;
 
 	private MutableObjectIterator<Pair<Integer, T>> currentPartitionIterator;
 
-	public RadixHeapPriorityQueue(TypeSerializer<T> typeSerializer, TypeComparator<T> typeComparator, List<MemorySegment> availableMemory, IOManager ioManager) {
+	public RadixHeapPriorityQueue(TypeSerializer<T> typeSerializer, List<MemorySegment> availableMemory, IOManager ioManager) {
 		Preconditions.checkArgument(availableMemory != null, "availableMemory can not be null.");
 		Preconditions.checkArgument(availableMemory.size() >= 33, "RadixHeapPriorityQueue requires at least 33 segments.");
 		this.typeSerializer = typeSerializer;
-		this.typeComparator = typeComparator;
 		this.availableMemory = availableMemory;
 		this.ioManager = ioManager;
 		this.radixPartitions = new RadixPartition[BUCKET_NUMBER];
@@ -109,6 +96,10 @@ public class RadixHeapPriorityQueue<T> {
 	}
 
 	public final void insert(int key, T value) throws IOException {
+		if (key < deleteMin) {
+			throw new IOException("Should not insert with key less than latest polled element.");
+		}
+
 		int index = getIndex(deleteMin, key);
 		radixPartitions[index].insert(key, value);
 	}
@@ -146,8 +137,14 @@ public class RadixHeapPriorityQueue<T> {
 	}
 
 	public final T poll() throws IOException {
-		currentValue = next();
-		return currentValue;
+		T result;
+		if (currentValue != null) {
+			result = currentValue;
+			currentValue = null;
+		} else {
+			result = next();
+		}
+		return result;
 	}
 
 	// Do not remove.
@@ -168,8 +165,8 @@ public class RadixHeapPriorityQueue<T> {
 			}
 		}
 
-		int freeSegments = radixPartitions[index].flush(ioManager.createBlockChannelWriter(currentEnumerator.next(), 
-				writeBehindBuffers));
+		int freeSegments = radixPartitions[index].flush(ioManager.createBlockChannelWriter(currentEnumerator.next(),
+			writeBehindBuffers));
 		
 		this.writeBehindBuffersAvailable += freeSegments;
 		MemorySegment currBuff;
@@ -191,8 +188,7 @@ public class RadixHeapPriorityQueue<T> {
 			MemorySegment toReturn;
 			try {
 				toReturn = this.writeBehindBuffers.take();
-			}
-			catch (InterruptedException iex) {
+			} catch (InterruptedException iex) {
 				throw new RuntimeException("PriorityQueue was interrupted while taking a buffer.");
 			}
 			this.writeBehindBuffersAvailable--;
@@ -264,11 +260,17 @@ public class RadixHeapPriorityQueue<T> {
 	 * @return The number
 	 */
 	public static int getNumWriteBehindBuffers(int numBuffers) {
-		int numIOBufs = (int) (Math.log(numBuffers) / Math.log(4) - 1.5);
-		return numIOBufs > 6 ? 6 : numIOBufs;
+		int numBufs = (int) (Math.log(numBuffers) / Math.log(4) - 1.5);
+		return numBufs > 6 ? 6 : numBufs;
 	}
 
 	public void close() {
+		if (this.closed) {
+			return;
+		}
+
+		releaseReaderResource();
+
 		for (int i = 0; i < BUCKET_NUMBER; i++) {
 			radixPartitions[i].close();
 		}
@@ -277,11 +279,27 @@ public class RadixHeapPriorityQueue<T> {
 		for (int i = 0; i < this.numWriteBehindBuffers + this.writeBehindBuffersAvailable; i++) {
 			try {
 				this.availableMemory.add(this.writeBehindBuffers.take());
-			}
-			catch (InterruptedException iex) {
+			} catch (InterruptedException iex) {
 				throw new RuntimeException("Hashtable closing was interrupted");
 			}
 		}
+		this.closed = true;
+		this.numWriteBehindBuffers = 0;
 		this.writeBehindBuffersAvailable = 0;
+		this.deleteMin = Integer.MAX_VALUE;
+	}
+
+	private void releaseReaderResource() {
+		if (this.currentPartitionIterator != null) {
+			Pair<Integer, T> value = null;
+			try {
+				value = this.currentPartitionIterator.next();
+				while (value != null) {
+					value = this.currentPartitionIterator.next();
+				}
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
 	}
 }

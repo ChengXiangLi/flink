@@ -17,13 +17,11 @@
  */
 package org.apache.flink.runtime.operators.sort;
 
-import org.apache.flink.api.common.typeutils.base.StringComparator;
 import org.apache.flink.api.common.typeutils.base.StringSerializer;
 import org.apache.flink.core.memory.MemorySegment;
 import org.apache.flink.runtime.io.disk.iomanager.IOManager;
 import org.apache.flink.runtime.io.disk.iomanager.IOManagerAsync;
 import org.apache.flink.runtime.memorymanager.DefaultMemoryManager;
-import org.apache.flink.runtime.memorymanager.MemoryAllocationException;
 import org.apache.flink.runtime.operators.testutils.DummyInvokable;
 import org.junit.After;
 import org.junit.Assert;
@@ -32,11 +30,13 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.PriorityQueue;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class RadixHeapPriorityQueueITCase {
 
-	private static final int MEMORY_SIZE = 1024 * 1120;
+	private static final int MEMORY_SIZE = 1024 * 1024 * 4;
 
 	private static final int MEMORY_PAGE_SIZE = 32 * 1024;
 
@@ -44,14 +44,12 @@ public class RadixHeapPriorityQueueITCase {
 	private IOManager ioManager;
 
 	private StringSerializer serializer;
-	private StringComparator comparator;
 
 	@Before
 	public void init() {
 		this.memoryManager = new DefaultMemoryManager(MEMORY_SIZE, MEMORY_PAGE_SIZE);
 		this.ioManager = new IOManagerAsync();
 		this.serializer = new StringSerializer();
-		this.comparator = new StringComparator(true);
 	}
 
 	@After
@@ -67,61 +65,14 @@ public class RadixHeapPriorityQueueITCase {
 	}
 
 	@Test
-	public void simpleTest() throws MemoryAllocationException, IOException {
+	public void testEmptyRadixHeapPriorityQueue() throws Exception {
 		final int numSegments = MEMORY_SIZE / MEMORY_PAGE_SIZE;
 		final List<MemorySegment> memory = this.memoryManager.allocatePages(new DummyInvokable(), numSegments);
-		RadixHeapPriorityQueue<String> heap = new RadixHeapPriorityQueue<>(serializer, comparator, memory, ioManager);
-
+		RadixHeapPriorityQueue<String> heap = new RadixHeapPriorityQueue<>(serializer, memory, ioManager);
 		try {
-			long start = System.currentTimeMillis();
-			int strSize = 15 * 1024;
-			byte[] strBytes = new byte[strSize];
-			for (int i=0; i< strSize; i++) {
-				strBytes[i] = 97;
-			}
-			heap.insert(0, 0 + new String(strBytes));
-			heap.insert(1, 1 + new String(strBytes));
-			heap.insert(2, 21 + new String(strBytes));
-			heap.insert(2, 22 + new String(strBytes));
-			heap.insert(2, 23 + new String(strBytes));
-			heap.insert(2, 24 + new String(strBytes));
-			heap.insert(2, 25 + new String(strBytes));
-			heap.insert(2, 26 + new String(strBytes));
-			heap.insert(2, 26 + new String(strBytes));
-			heap.insert(2, 26 + new String(strBytes));
-			heap.insert(2, 26 + new String(strBytes));
-			System.out.println(memory.size());
-			long inserted = System.currentTimeMillis();
-			System.out.println("insert cost ["+(inserted - start)+"]ms");
 			String result = heap.poll();
-			int count = 0;
-			while (result != null) {
-				count++;
-				System.out.println(result);
-				result = heap.poll();
-			}
-			System.out.println(count);
-			long end = System.currentTimeMillis() - inserted;
-			System.out.println("poll cost [" + end + "]ms");
+			assertTrue("Heap should poll null while it's empty.", result == null);
 
-			heap.insert(3, 3 + new String(strBytes));
-			heap.insert(4, 22 + new String(strBytes));
-			heap.insert(5, 5 + new String(strBytes));
-			heap.insert(8, 8 + new String(strBytes));
-			heap.insert(9, 9 + new String(strBytes));
-			heap.insert(17, 17 + new String(strBytes));
-			heap.insert(18, 18 + new String(strBytes));
-			heap.insert(19, 19 + new String(strBytes));
-			heap.insert(20, 20 + new String(strBytes));
-
-			result = heap.poll();
-			while (result != null) {
-				System.out.println(result);
-				result = heap.poll();
-			}
-			
-		} catch (Exception e) {
-			throw e;
 		} finally {
 			heap.close();
 			this.memoryManager.release(heap.availableMemory);
@@ -129,61 +80,268 @@ public class RadixHeapPriorityQueueITCase {
 	}
 
 	@Test
-	public void simpleTest2() throws MemoryAllocationException, IOException {
-		PriorityQueue<Pair> heap = new PriorityQueue<>();
-
+	public void testInMemoryRadixHeapPriorityQueue() throws Exception {
+		final int numSegments = MEMORY_SIZE / MEMORY_PAGE_SIZE;
+		final List<MemorySegment> memory = this.memoryManager.allocatePages(new DummyInvokable(), numSegments);
+		RadixHeapPriorityQueue<String> heap = new RadixHeapPriorityQueue<>(serializer, memory, ioManager);
 		try {
-			long start = System.currentTimeMillis();
-			for (int i=0; i<2048000; i++) {
-				Pair pair = new Pair(i, i + "hahahehe");
-				heap.add(pair);
+			// Insert by index from 0 to 49 with ascend order.
+			for (int i = 0; i < 50; i++) {
+				heap.insert(i, i + " test data.");
 			}
-			long inserted = System.currentTimeMillis();
-			System.out.println("insert cost ["+(inserted - start)+"]ms");
-			Pair result = heap.poll();
-			int count = 0;
-			while (result != null && count<100) {
-				count++;
-				result = heap.poll();
+
+			// Insert by index from 99 to 50 with descend order.
+			for (int i = 99; i >= 50; i--) {
+				heap.insert(i, i + " test data.");
 			}
-			long end = System.currentTimeMillis() - inserted;
-			System.out.println("poll cost ["+end+"]ms");
-			System.out.println(count);
-		} catch (Exception e) {
-			throw e;
+
+			for (int i = 0; i < 100; i++) {
+				String result = heap.poll();
+				assertEquals("RadixHeapPriorityQueue should poll smallest element each time.", i + " test data.", result);
+			}
+
 		} finally {
+			heap.close();
+			this.memoryManager.release(heap.availableMemory);
 		}
 	}
 
-}
-class Pair implements Comparable<Pair>{
-	int key;
+	@Test
+	public void testInMemoryRadixHeapPriorityQueueWithInsertAfterPoll() throws Exception {
+		final int numSegments = MEMORY_SIZE / MEMORY_PAGE_SIZE;
+		final List<MemorySegment> memory = this.memoryManager.allocatePages(new DummyInvokable(), numSegments);
+		RadixHeapPriorityQueue<String> heap = new RadixHeapPriorityQueue<>(serializer, memory, ioManager);
+		try {
+			// Insert by index from 0 to 49 with ascend order.
+			for (int i = 0; i < 50; i++) {
+				heap.insert(i, i + " test data.");
+			}
 
-	String value;
+			for (int i = 0; i < 50; i++) {
+				String result = heap.poll();
+				assertEquals("RadixHeapPriorityQueue should poll smallest element each time.", i + " test data.", result);
+			}
 
-	public Pair(int key, String value) {
-		this.key = key;
-		this.value = value;
+			// Insert by index from 99 to 50 with descend order.
+			for (int i = 99; i >= 50; i--) {
+				heap.insert(i, i + " test data.");
+			}
+
+			for (int i = 50; i < 100; i++) {
+				String result = heap.poll();
+				assertEquals("RadixHeapPriorityQueue should poll smallest element each time.", i + " test data.", result);
+			}
+		} finally {
+			heap.close();
+			this.memoryManager.release(heap.availableMemory);
+		}
 	}
 
-	public String getValue() {
-		return value;
+	@Test(expected = Exception.class)
+	public void testInMemoryRadixHeapPriorityQueueWithInvalidInsert() throws Exception {
+		final int numSegments = MEMORY_SIZE / MEMORY_PAGE_SIZE;
+		final List<MemorySegment> memory = this.memoryManager.allocatePages(new DummyInvokable(), numSegments);
+		RadixHeapPriorityQueue<String> heap = new RadixHeapPriorityQueue<>(serializer, memory, ioManager);
+		try {
+			// Insert by index from 0 to 49 with ascend order.
+			for (int i = 0; i < 50; i++) {
+				heap.insert(i, i + " test data.");
+			}
+
+			for (int i = 0; i < 50; i++) {
+				String result = heap.poll();
+				assertEquals("RadixHeapPriorityQueue should poll smallest element each time.", i + " test data.", result);
+			}
+
+			heap.insert(1, "1 invalid test data.");
+
+		} finally {
+			heap.close();
+			this.memoryManager.release(heap.availableMemory);
+		}
 	}
 
-	public void setValue(String value) {
-		this.value = value;
+	@Test
+	public void testInMemoryRadixHeapPriorityQueueWithPeek() throws Exception {
+		final int numSegments = MEMORY_SIZE / MEMORY_PAGE_SIZE;
+		final List<MemorySegment> memory = this.memoryManager.allocatePages(new DummyInvokable(), numSegments);
+		RadixHeapPriorityQueue<String> heap = new RadixHeapPriorityQueue<>(serializer, memory, ioManager);
+		try {
+			// Insert by index from 0 to 49 with ascend order.
+			for (int i = 0; i < 100; i++) {
+				heap.insert(i, i + " test data.");
+			}
+
+			String peeked1 = heap.peek();
+			assertEquals("RadixHeapPriorityQueue peek() should not remove smallest element from heap.", peeked1, "0 test data.");
+			String peeked2 = heap.peek();
+			assertEquals("RadixHeapPriorityQueue peek() should not remove smallest element from heap.", peeked1, peeked2);
+			String polled = heap.poll();
+			assertEquals("RadixHeapPriorityQueue peek() should not remove smallest element from heap.", peeked1, polled);
+		} finally {
+			heap.close();
+			this.memoryManager.release(heap.availableMemory);
+		}
 	}
 
-	public int getKey() {
-		return key;
+	@Test
+	public void testInMemoryRadixHeapPriorityQueueWithMultiClose() throws Exception {
+		final int numSegments = MEMORY_SIZE / MEMORY_PAGE_SIZE;
+		final List<MemorySegment> memory = this.memoryManager.allocatePages(new DummyInvokable(), numSegments);
+		RadixHeapPriorityQueue<String> heap = new RadixHeapPriorityQueue<>(serializer, memory, ioManager);
+		try {
+			// Insert by index from 0 to 49 with ascend order.
+			for (int i = 0; i < 100; i++) {
+				heap.insert(i, i + " test data.");
+			}
+		} finally {
+			heap.close();
+			heap.close();
+			this.memoryManager.release(heap.availableMemory);
+		}
 	}
 
-	public void setKey(int key) {
-		this.key = key;
+	@Test(expected = IOException.class)
+	public void testInMemoryRadixHeapPriorityQueueInsertAfterClose() throws Exception {
+		final int numSegments = MEMORY_SIZE / MEMORY_PAGE_SIZE;
+		final List<MemorySegment> memory = this.memoryManager.allocatePages(new DummyInvokable(), numSegments);
+		RadixHeapPriorityQueue<String> heap = new RadixHeapPriorityQueue<>(serializer, memory, ioManager);
+		try {
+			// Insert by index from 0 to 49 with ascend order.
+			for (int i = 0; i < 100; i++) {
+				heap.insert(i, i + " test data.");
+			}
+			heap.close();
+			heap.insert(100, "100 test data.");
+		} finally {
+			heap.close();
+			this.memoryManager.release(heap.availableMemory);
+		}
 	}
 
-	@Override
-	public int compareTo(Pair o) {
-		return this.key - o.getKey();
+	@Test
+	public void testSpilledRadixHeapPriorityQueue() throws Exception {
+		final int numSegments = MEMORY_SIZE / MEMORY_PAGE_SIZE;
+		final List<MemorySegment> memory = this.memoryManager.allocatePages(new DummyInvokable(), numSegments);
+		RadixHeapPriorityQueue<String> heap = new RadixHeapPriorityQueue<>(serializer, memory, ioManager);
+		String insertStr = new String(new byte[1024]);
+		try {
+			// Insert by index from 0 to 49 with ascend order.
+			for (int i = 0; i < 5000; i++) {
+				heap.insert(i, i + insertStr);
+			}
+
+			// Insert by index from 99 to 50 with descend order.
+			for (int i = 9999; i >= 5000; i--) {
+				heap.insert(i, i + insertStr);
+			}
+
+			for (int i = 0; i < 10000; i++) {
+				String result = heap.poll();
+				assertEquals("RadixHeapPriorityQueue should poll smallest element each time.", i + insertStr, result);
+			}
+
+		} finally {
+			heap.close();
+			this.memoryManager.release(heap.availableMemory);
+		}
+	}
+
+	@Test
+	public void testSpilledRadixHeapPriorityQueueWithInsertAfterPoll() throws Exception {
+		final int numSegments = MEMORY_SIZE / MEMORY_PAGE_SIZE;
+		final List<MemorySegment> memory = this.memoryManager.allocatePages(new DummyInvokable(), numSegments);
+		RadixHeapPriorityQueue<String> heap = new RadixHeapPriorityQueue<>(serializer, memory, ioManager);
+		String insertStr = new String(new byte[1024]);
+		try {
+			// Insert by index from 0 to 49 with ascend order.
+			for (int i = 0; i < 5000; i++) {
+				heap.insert(i, i + insertStr);
+			}
+
+			for (int i = 0; i < 5000; i++) {
+				String result = heap.poll();
+				assertEquals("RadixHeapPriorityQueue should poll smallest element each time.", i + insertStr, result);
+			}
+
+			// Insert by index from 99 to 50 with descend order.
+			for (int i = 9999; i >= 5000; i--) {
+				heap.insert(i, i + insertStr);
+			}
+
+			for (int i = 5000; i < 10000; i++) {
+				String result = heap.poll();
+				assertEquals("RadixHeapPriorityQueue should poll smallest element each time.", i + insertStr, result);
+			}
+
+		} finally {
+			heap.close();
+			this.memoryManager.release(heap.availableMemory);
+		}
+	}
+
+	@Test
+	public void testSpilledRadixHeapPriorityQueueWithPeek() throws Exception {
+		final int numSegments = MEMORY_SIZE / MEMORY_PAGE_SIZE;
+		final List<MemorySegment> memory = this.memoryManager.allocatePages(new DummyInvokable(), numSegments);
+		RadixHeapPriorityQueue<String> heap = new RadixHeapPriorityQueue<>(serializer, memory, ioManager);
+		String insertStr = new String(new byte[1024]);
+		try {
+			// Insert by index from 0 to 49 with ascend order.
+			for (int i = 0; i < 10000; i++) {
+				heap.insert(i, i + insertStr);
+			}
+
+			for (int i = 0; i < 5000; i++) {
+				heap.poll();
+			}
+
+			String peeked1 = heap.peek();
+			assertEquals("RadixHeapPriorityQueue peek() should not remove smallest element from heap.", 5000 + insertStr, peeked1);
+			String polled = heap.poll();
+			assertEquals("RadixHeapPriorityQueue peek() should not remove smallest element from heap.", peeked1, polled);
+			String peeked2 = heap.peek();
+			assertEquals("RadixHeapPriorityQueue peek() should not remove smallest element from heap.", 5001 + insertStr, peeked2);
+		} finally {
+			heap.close();
+			this.memoryManager.release(heap.availableMemory);
+		}
+	}
+
+	@Test
+	public void testSpilledRadixHeapPriorityQueueWithMultiClose() throws Exception {
+		final int numSegments = MEMORY_SIZE / MEMORY_PAGE_SIZE;
+		final List<MemorySegment> memory = this.memoryManager.allocatePages(new DummyInvokable(), numSegments);
+		RadixHeapPriorityQueue<String> heap = new RadixHeapPriorityQueue<>(serializer, memory, ioManager);
+		String insertStr = new String(new byte[1024]);
+		try {
+			// Insert by index from 0 to 49 with ascend order.
+			for (int i = 0; i < 10000; i++) {
+				heap.insert(i, i + insertStr);
+			}
+		} finally {
+			heap.close();
+			heap.close();
+			this.memoryManager.release(heap.availableMemory);
+		}
+	}
+
+	@Test(expected = Exception.class)
+	public void testSpilledRadixHeapPriorityQueueInsertAfterClose() throws Exception {
+		final int numSegments = MEMORY_SIZE / MEMORY_PAGE_SIZE;
+		final List<MemorySegment> memory = this.memoryManager.allocatePages(new DummyInvokable(), numSegments);
+		RadixHeapPriorityQueue<String> heap = new RadixHeapPriorityQueue<>(serializer, memory, ioManager);
+		String insertStr = new String(new byte[1024]);
+		try {
+			// Insert by index from 0 to 49 with ascend order.
+			for (int i = 0; i < 10000; i++) {
+				heap.insert(i, i + insertStr);
+			}
+			heap.close();
+			heap.insert(10000, 10000 + insertStr);
+		} finally {
+			heap.close();
+			this.memoryManager.release(heap.availableMemory);
+		}
 	}
 }
