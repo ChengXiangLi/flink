@@ -424,7 +424,7 @@ public final class FixedLengthRecordSorter<T> implements InMemorySorter<T> {
 			}
 		}
 	}
-	
+
 	@Override
 	public void writeToOutput(ChannelWriterOutputView output, LargeRecordHandler<T> largeRecordsOutput)
 			throws IOException
@@ -473,6 +473,48 @@ public final class FixedLengthRecordSorter<T> implements InMemorySorter<T> {
 			}
 		}
 	}
+
+	public void flushToOutput(final ChannelWriterOutputView output, final int start) throws IOException {
+		final TypeComparator<T> comparator = this.comparator;
+		final TypeSerializer<T> serializer = this.serializer;
+		final int num = this.numRecords - start;
+		T record = this.recordInstance;
+
+		final SingleSegmentInputView inView = this.inView;
+
+		int remainNumber = num;
+		int currentMemSeg = start / recordsPerSegment;
+		int offset = (start % recordsPerSegment) * this.recordSize;
+		int skipped = offset / this.recordSize;
+		int remainRecordsInSegment = this.recordsPerSegment - skipped;
+
+		while (remainNumber > 0) {
+			final MemorySegment currentIndexSegment = this.sortBuffer.get(currentMemSeg);
+			inView.set(currentIndexSegment, offset);
+			remainNumber -= remainRecordsInSegment;
+
+			// partially filled segment
+			for (; remainRecordsInSegment > 0; remainRecordsInSegment--) {
+				record = comparator.readWithKeyDenormalization(record, inView);
+				serializer.serialize(record, output);
+			}
+
+			currentMemSeg++;
+			offset = 0;
+			remainRecordsInSegment = num > recordsPerSegment ? recordsPerSegment : num;
+		}
+
+		int startSegmentIndex = start / recordsPerSegment;
+		int startOffset = (start % recordsPerSegment) * this.recordSize;
+		MemorySegment currentSegment = this.sortBuffer.get(startSegmentIndex);
+		this.outView.set(currentSegment, startOffset);
+		int freeBufferCount = this.sortBuffer.size() - startSegmentIndex - 1;
+		for (int i=0; i<freeBufferCount; i++) {
+			this.freeMemory.add(this.sortBuffer.remove(this.sortBuffer.size() - 1));
+		}
+		this.numRecords -= num;
+		this.currentSortBufferOffset = startOffset;
+	}
 	
 	private static final class SingleSegmentOutputView extends AbstractPagedOutputView {
 		
@@ -483,7 +525,11 @@ public final class FixedLengthRecordSorter<T> implements InMemorySorter<T> {
 		void set(MemorySegment segment) {
 			seekOutput(segment, 0);
 		}
-		
+
+		void set(MemorySegment segment, int positionInSegment) {
+			seekOutput(segment, positionInSegment);
+		}
+
 		@Override
 		protected MemorySegment nextSegment(MemorySegment current, int positionInCurrent) throws IOException {
 			throw new EOFException();

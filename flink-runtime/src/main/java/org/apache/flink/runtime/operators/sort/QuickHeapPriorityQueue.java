@@ -22,60 +22,63 @@ import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.core.memory.MemorySegment;
 import org.apache.flink.runtime.io.disk.iomanager.IOManager;
 
+import java.io.IOException;
 import java.util.List;
 
 public class QuickHeapPriorityQueue<T> {
 
-	private List<MemorySegment> availableMemories;
-	private IOManager ioManager;
-	private TypeSerializer<T> typeSerializer;
-	private TypeComparator<T> typeComparator;
-	private MemorySegment[] keyBuffers;
-	private int currentKeyBufferIndex;
-	private int currentPositionInKeyBuffer;
-	private MemorySegment[] valueBuffers;
-	private int currentValueBufferIndex;
-	private int currentPositionInValueBuffer;
-	private MemorySegment valueBufferBridge;
+	/**
+	 * Fix length records with a length below this threshold will be in-place sorted, if possible.
+	 */
+	private static final int THRESHOLD_FOR_IN_PLACE_SORTING = 32;
 
-	public QuickHeapPriorityQueue(TypeSerializer<T> typeSerializer, TypeComparator<T> typeComparator, List<MemorySegment> availableMemories, IOManager ioManager) {
+	private final List<MemorySegment> availableMemories;
+	private final TypeSerializer<T> typeSerializer;
+	private final TypeComparator<T> typeComparator;
+	private final IOManager ioManager;
+	private final QuickSelector<T> quickSelector;
+	private T currentRecord;
+
+	public QuickHeapPriorityQueue(List<MemorySegment> availableMemories, TypeSerializer<T> typeSerializer, TypeComparator<T> typeComparator, IOManager ioManager) {
+		this.availableMemories = availableMemories;
 		this.typeSerializer = typeSerializer;
 		this.typeComparator = typeComparator;
-		this.availableMemories = availableMemories;
 		this.ioManager = ioManager;
-		this.currentKeyBufferIndex = 0;
-		this.currentPositionInKeyBuffer = 0;
-		this.currentValueBufferIndex = 0;
-		this.currentPositionInValueBuffer = 0;
+		this.quickSelector = new FixedLengthQuickSelector<>(availableMemories, typeSerializer, typeComparator, ioManager);
+		//		if (this.typeComparator.supportsSerializationWithKeyNormalization() &&
+		//			this.typeSerializer.getLength() > 0 && this.typeSerializer.getLength() <= THRESHOLD_FOR_IN_PLACE_SORTING) {
+		//		} else {
+		//			//			this.selector = new NormalizedKeySorter<>(typeSerializer, typeComparator, availableMemories);
+		//		}
 	}
 
-	public void insert(T value) {
-
+	public void insert(T record) throws IOException {
+		this.quickSelector.insert(record);
 	}
 
-	public T poll() {
-		return null;
+	public T poll() throws IOException {
+		T result = null;
+		if (currentRecord != null) {
+			result = currentRecord;
+			currentRecord = null;
+		} else {
+			result = this.quickSelector.next();
+		}
+		return result;
 	}
 
-	public T peek() {
-		return null;
+	public T peek() throws IOException {
+		if (currentRecord == null) {
+			currentRecord = this.quickSelector.next();
+		}
+		return currentRecord;
 	}
 
-	private void advance() {}
-
-	private void flush() {
+	public int size() {
+		return this.quickSelector.size();
 	}
 
-	// add value to value buffer in sequence, and return the start position.
-	private long addToValueBuffer(T value) {
-		return 0;
-	}
-
-	// iterate the value buffers, if value is after latest pivot, spill to disk, else copy to new buffer, and update pointer in key buffers.
-	private void refactorValueBuffer() {}
-
-	// implement quick select algorithm, reorganize key buffers until pivot at index 0 is found.
-	private void quickSelect() {
-
+	public List<MemorySegment> close() throws IOException {
+		return this.quickSelector.close();
 	}
 }
