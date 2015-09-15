@@ -42,6 +42,7 @@ public class FixedLengthQuickSelector<T> implements QuickSelector<T>{
 	private final TypeSerializer<T> typeSerializer;
 	private final TypeComparator<T> typeComparator;
 	private final IOManager ioManager;
+	private final int recordsPerSegment;
 	private Deque<Pivot<T>> pivots;
 	private FixedLengthRecordSorter<T> inMemorySorter;
 	private List<MemorySegment> spillBuffer;
@@ -73,6 +74,20 @@ public class FixedLengthQuickSelector<T> implements QuickSelector<T>{
 		random = new Random();
 		this.inMemorySorter = new FixedLengthRecordSorter<>(typeSerializer, typeComparator, availableMemories);
 
+		int recordSize = typeSerializer.getLength();
+
+		// check that the serializer and comparator allow our operations
+		if (recordSize <= 0) {
+			throw new IllegalArgumentException("This sorter works only for fixed-length data types.");
+		} else if (recordSize > this.segmentSize) {
+			throw new IllegalArgumentException("This sorter works only for record lengths below the memory segment size.");
+		} else if (!typeComparator.supportsSerializationWithKeyNormalization()) {
+			throw new IllegalArgumentException("This sorter requires a comparator that supports serialization with key normalization.");
+		}
+
+		// compute the entry size and limits
+		this.recordsPerSegment = segmentSize / recordSize;
+
 		this.skipped = 0;
 		this.totalCount = 0;
 	}
@@ -83,34 +98,6 @@ public class FixedLengthQuickSelector<T> implements QuickSelector<T>{
 		totalCount++;
 	}
 
-	private boolean isInMemory() {
-		return this.outputView == null;
-	}
-
-	private void put(T value) throws IOException {
-		if (isInMemory()) {
-			putOnMemory(value);
-		} else {
-			if (this.typeComparator.compare(value, spillPivot) < 0) {
-				putOnMemory(value);
-			} else {
-				this.typeSerializer.serialize(value, outputView);
-			}
-		}
-	}
-
-	private void putOnMemory(T value) throws IOException {
-		boolean success = this.inMemorySorter.write(value);
-		if (!success) {
-			flush();
-			success = this.inMemorySorter.write(value);
-			if (!success) {
-				throw new IOException("Flush did not recycle any memory.");
-			}
-		}
-		this.pivots.clear();
-	}
-
 	@Override
 	public T next() throws IOException {
 		if (totalCount == 0) {
@@ -119,28 +106,46 @@ public class FixedLengthQuickSelector<T> implements QuickSelector<T>{
 
 		if (pivots.isEmpty()) {
 			if (this.inMemorySorter.size() != skipped) {
+				// While there are remain records in memory, use quick select algorithm to find pivots on all records in memory.
 				quickSelect();
 			}
 		} else {
 			Pivot<T> last = pivots.peekLast();
 			if (last.getIndex() != 0) {
+				// While the last pivot is not at index 0, use quick select algorithm to find pivots on records before last index.
 				quickSelect(pivots.peekLast().getIndex());
 			}
 		}
 
 		if (pivots.isEmpty()) {
 			if (!isInMemory()) {
+				// While no more records in memory and some records has been spilled to disk before, reload records from disk, and
+				// use quick select algorithm to find pivots on all records in memory.
 				reload();
 				quickSelect();
 			}
 		}
 
+		if (pivots.isEmpty()) {
+			throw new IOException("Can not find any more pivots while there should still have " + this.totalCount + " records.");
+		}
+
 		Pivot<T> last = pivots.pollLast();
+
+		if (last.getIndex() != 0) {
+			throw new IOException("The last pivot index is not 0 after quick select.");
+		}
+
 		for (Pivot<T> pivot : pivots) {
 			pivot.decrementIndex();
 		}
 		this.totalCount--;
 		this.skipped++;
+		if (this.skipped > this.recordsPerSegment) {
+			if (this.inMemorySorter.turnCycle()) {
+				this.skipped -= this.recordsPerSegment;
+			}
+		}
 		return last.getRecord();
 	}
 
@@ -161,6 +166,36 @@ public class FixedLengthQuickSelector<T> implements QuickSelector<T>{
 			}
 		}
 		return dispose;
+	}
+
+	private void put(T value) throws IOException {
+		if (isInMemory()) {
+			putOnMemory(value);
+		} else {
+			if (this.typeComparator.compare(value, spillPivot) < 0) {
+				putOnMemory(value);
+			} else {
+				this.typeSerializer.serialize(value, outputView);
+			}
+		}
+	}
+
+	private void putOnMemory(T value) throws IOException {
+		boolean success = this.inMemorySorter.write(value);
+		if (!success) {
+			flush();
+			if (this.typeComparator.compare(value, spillPivot) < 0) {
+				putOnMemory(value);
+			} else {
+				this.typeSerializer.serialize(value, outputView);
+			}
+		}
+		// New record is added at the end of memory, all the pivots may be invalid, so clear the pivots.
+		this.pivots.clear();
+	}
+
+	private boolean isInMemory() {
+		return this.outputView == null;
 	}
 
 	private void quickSelect() throws IOException {
@@ -248,15 +283,11 @@ public class FixedLengthQuickSelector<T> implements QuickSelector<T>{
 		releaseBufferForIO(this.outputView.close());
 		FileIOChannel.ID channelID = this.blockChannelWriter.getChannelID();
 
-		this.blockChannelWriter = null;
-		this.outputView = null;
-
 		BlockChannelReader<MemorySegment> channelReader = this.ioManager.createBlockChannelReader(channelID);
 		final ChannelReaderInputView inView = new ChannelReaderInputView(channelReader, getBufferForIO(2), false);
 		T reuse = this.typeSerializer.createInstance();
 		this.typeSerializer.deserialize(reuse, inView);
-		this.inMemorySorter.reset();
-		this.skipped = 0;
+		reset();
 		while (reuse != null) {
 			insert(reuse);
 			try {
@@ -276,6 +307,14 @@ public class FixedLengthQuickSelector<T> implements QuickSelector<T>{
 			}
 		} catch (Throwable t) {
 		}
+	}
+
+	private void reset() {
+		this.blockChannelWriter = null;
+		this.outputView = null;
+		this.inMemorySorter.reset();
+		this.skipped = 0;
+		this.pivots.clear();
 	}
 
 	private List<MemorySegment> getBufferForIO(int index) {

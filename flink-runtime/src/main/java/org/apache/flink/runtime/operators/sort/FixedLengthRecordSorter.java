@@ -259,10 +259,21 @@ public final class FixedLengthRecordSorter<T> implements InMemorySorter<T> {
 	//                           Access Utilities
 	// ------------------------------------------------------------------------
 	
+	public final boolean turnCycle() {
+		if (this.sortBuffer.size() > 1 && this.numRecords > this.recordsPerSegment) {
+			MemorySegment removed = this.sortBuffer.remove(0);
+			this.numRecords -= this.recordsPerSegment;
+			this.freeMemory.add(removed);
+			return true;
+		} else {
+			return false;
+		}
+	}
+
 	private final boolean memoryAvailable() {
 		return !this.freeMemory.isEmpty();
 	}
-	
+
 	private final MemorySegment nextMemorySegment() {
 		return this.freeMemory.remove(this.freeMemory.size() - 1);
 	}
