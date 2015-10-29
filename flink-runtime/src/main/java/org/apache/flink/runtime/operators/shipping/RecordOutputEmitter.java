@@ -190,7 +190,7 @@ public class RecordOutputEmitter implements ChannelSelector<Record> {
 		if (this.partitionBoundaries == null) {
 			this.partitionBoundaries = new Key[numberOfChannels - 1][];
 			for (int i = 0; i < numberOfChannels - 1; i++) {
-				this.partitionBoundaries[i] = this.distribution.getBucketBoundary(i, numberOfChannels);
+				this.partitionBoundaries[i] = (Key<?>[])this.distribution.getBucketBoundary(i, numberOfChannels);
 			}
 		}
 		
