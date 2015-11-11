@@ -1264,11 +1264,10 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable impleme
 					oe = new OutputEmitter<T>(strategy);
 				}
 				else {
-					final DataDistribution dataDist = config.getOutputDataDistribution(i, cl);
 					final Partitioner<?> partitioner = config.getOutputPartitioner(i, cl);
 
 					final TypeComparator<T> comparator = compFactory.createComparator();
-					oe = new OutputEmitter<T>(strategy, comparator, partitioner, dataDist);
+					oe = new OutputEmitter<T>(strategy, comparator, partitioner);
 				}
 
 				final RecordWriter<SerializationDelegate<T>> recordWriter =
