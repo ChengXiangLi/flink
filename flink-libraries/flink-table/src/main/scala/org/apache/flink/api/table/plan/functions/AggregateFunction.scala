@@ -21,14 +21,13 @@ import java.lang.Iterable
 
 import com.google.common.base.Preconditions
 import org.apache.flink.api.common.functions.RichGroupReduceFunction
-import org.apache.flink.api.table.Row
 import org.apache.flink.configuration.Configuration
 import org.apache.flink.util.Collector
 
 import scala.collection.JavaConversions._
 
-class AggregateFunction(private val aggregates: Array[Aggregate], private val fields: Array[Int])
-  extends RichGroupReduceFunction[Row, Row] {
+class AggregateFunction(private val aggregates: Array[Aggregate[_ <: Any]], private val fields: Array[Int])
+  extends RichGroupReduceFunction[Any, Any] {
 
   override def open(config: Configuration) {
     Preconditions.checkNotNull(aggregates)
@@ -38,20 +37,20 @@ class AggregateFunction(private val aggregates: Array[Aggregate], private val fi
     aggregates.foreach(_.initiateAggregate)
   }
 
-  override def reduce(values: Iterable[Row], out: Collector[Row]): Unit = {
-    var currentValue: Row = null
+  override def reduce(values: Iterable[Any], out: Collector[Any]): Unit = {
+    var currentValue: Any = null
 
     val aggregateDatas = fields.map(fieldIndex => {
       values.map(value => {
         currentValue = value
-        value.productElement(fieldIndex)
+        FunctionUtils.getFieldValue(value, fieldIndex)
       })
     })
 
     aggregates.zip(aggregateDatas).zip(fields).foreach {
       case ((aggregator, aggregateData), fieldIndex) =>
         aggregator.aggregate(aggregateData)
-        currentValue.setField(fieldIndex, aggregator.getAggregated())
+        FunctionUtils.putFieldValue(currentValue, fieldIndex, aggregator.getAggregated())
     }
 
     out.collect(currentValue)

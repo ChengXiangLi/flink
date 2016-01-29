@@ -22,28 +22,26 @@ import org.apache.calcite.sql.fun.SqlCountAggFunction
 import org.apache.flink.api.common.functions.RichGroupReduceFunction
 import org.apache.flink.api.table.Row
 
-import scala.collection.mutable.ArrayBuffer
-
 object AggregateFactory {
 
   def createAggregateInstance(aggregateCalls: Seq[AggregateCall]): RichGroupReduceFunction[Row, Row] = {
-    val fieldIndexes = new ArrayBuffer[Int]
-    val aggregates = new ArrayBuffer[Aggregate]
-    aggregateCalls.map { aggregateCall =>
+    val fieldIndexes = new Array[Int](aggregateCalls.size)
+    val aggregates = new Array[Aggregate[_ <: Any]](aggregateCalls.size)
+    aggregateCalls.zipWithIndex.map { case (aggregateCall, index) =>
       val sqlType = aggregateCall.getType
       // currently assume only aggregate on singleton field.
       val fieldIndex = aggregateCall.getArgList.get(0);
-      fieldIndexes += fieldIndex
+      fieldIndexes(index) = fieldIndex
       aggregateCall.getAggregation match {
         case SqlCountAggFunction =>
           sqlType.getSqlTypeName match {
             case "BIGINT" =>
-              aggregates += new LongSumAggregate
+              aggregates(index) = new LongSumAggregate
           }
       }
     }
 
-    new AggregateFunction(aggregates.toArray, fieldIndexes.toArray)
+    new AggregateFunction(aggregates, fieldIndexes)
   }
 
 }
