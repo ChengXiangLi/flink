@@ -15,23 +15,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.flink.api.table.plan.functions
+package org.apache.flink.api.table.plan
 
-import org.apache.flink.api.table.Row
+class OptimizeException(message: String, exception: Exception) extends 
+    RuntimeException(message: String, exception: Exception){
 
-object FunctionUtils {
-
-  def getFieldValue(record: Any, fieldIndex: Int): Any = {
-    record match {
-      case row: Row => row.productElement(fieldIndex)
-      case _ => throw new UnsupportedOperationException("Do not support types other than Row.")
-    }
-  }
-  
-  def putFieldValue(record: Any, fieldIndex: Int, fieldValue: Any): Unit = {
-    record match {
-      case row: Row => row.setField(fieldIndex, fieldValue)
-      case _ => throw new UnsupportedOperationException("Do not support types other than Row.")
-    }
+  def this(message: String){
+    this(message, null)
   }
 }

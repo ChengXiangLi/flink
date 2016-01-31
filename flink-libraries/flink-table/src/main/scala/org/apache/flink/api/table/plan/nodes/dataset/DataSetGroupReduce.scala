@@ -35,7 +35,7 @@ class DataSetGroupReduce(
                           rowType: RelDataType,
                           opName: String,
                           groupingKeys: Array[Int],
-                          func: GroupReduceFunction[Row, Row])
+                          func: GroupReduceFunction[Any, Any])
   extends SingleRel(cluster, traitSet, input)
   with DataSetRel {
 

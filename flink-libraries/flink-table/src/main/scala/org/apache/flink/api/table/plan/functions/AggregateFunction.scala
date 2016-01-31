@@ -21,13 +21,15 @@ import java.lang.Iterable
 
 import com.google.common.base.Preconditions
 import org.apache.flink.api.common.functions.RichGroupReduceFunction
+import org.apache.flink.api.table.plan.functions.aggregate.Aggregate
 import org.apache.flink.configuration.Configuration
 import org.apache.flink.util.Collector
 
 import scala.collection.JavaConversions._
 
-class AggregateFunction(private val aggregates: Array[Aggregate[_ <: Any]], private val fields: Array[Int])
-  extends RichGroupReduceFunction[Any, Any] {
+class AggregateFunction(
+  private val aggregates: Array[Aggregate[_ <: Any]], 
+  private val fields: Array[Int]) extends RichGroupReduceFunction[Any, Any] {
 
   override def open(config: Configuration) {
     Preconditions.checkNotNull(aggregates)

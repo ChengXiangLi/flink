@@ -83,7 +83,8 @@ class AggregationsITCase(mode: TestExecutionMode) extends MultipleProgramsTestBa
     TestBaseUtils.compareResultAsText(results.asJava, expected)
   }
 
-  @Test(expected = classOf[NotImplementedError])
+//  @Test(expected = classOf[NotImplementedError])
+  @Test
   def testAggregationWithTwoCount(): Unit = {
 
     val env = ExecutionEnvironment.getExecutionEnvironment

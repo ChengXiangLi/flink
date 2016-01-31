@@ -15,23 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.flink.api.table.plan.functions
+package org.apache.flink.api.table.plan.functions.aggregate
 
-import org.apache.flink.api.table.Row
-
-object FunctionUtils {
-
-  def getFieldValue(record: Any, fieldIndex: Int): Any = {
-    record match {
-      case row: Row => row.productElement(fieldIndex)
-      case _ => throw new UnsupportedOperationException("Do not support types other than Row.")
-    }
-  }
-  
-  def putFieldValue(record: Any, fieldIndex: Int, fieldValue: Any): Unit = {
-    record match {
-      case row: Row => row.setField(fieldIndex, fieldValue)
-      case _ => throw new UnsupportedOperationException("Do not support types other than Row.")
-    }
-  }
+trait Aggregate[T] {
+  def initiateAggregate
+  def aggregate(value: Iterable[Any])
+  def getAggregated(): T
 }

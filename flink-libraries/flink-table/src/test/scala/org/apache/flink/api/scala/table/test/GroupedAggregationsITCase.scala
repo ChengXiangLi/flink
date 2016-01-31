@@ -54,7 +54,7 @@ class GroupedAggregationsITCase(mode: TestExecutionMode) extends MultipleProgram
 
     val env = ExecutionEnvironment.getExecutionEnvironment
     val t = CollectionDataSets.get3TupleDataSet(env).as('a, 'b, 'c)
-      .groupBy('b)
+      .groupBy('b, 'c)
       .select('b, 'a.sum)
 
     val expected = "1,1\n" + "2,5\n" + "3,15\n" + "4,34\n" + "5,65\n" + "6,111\n"
