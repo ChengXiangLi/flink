@@ -39,22 +39,26 @@ class AggregateFunction(
     aggregates.foreach(_.initiateAggregate)
   }
 
-  override def reduce(values: Iterable[Any], out: Collector[Any]): Unit = {
+  override def reduce(records: Iterable[Any], out: Collector[Any]): Unit = {
     var currentValue: Any = null
 
-    val aggregateDatas = fields.map(fieldIndex => {
-      values.map(value => {
+    // iterate all input records, feed to each aggregate.
+    val aggregateAndField = aggregates.zip(fields)
+    records.foreach {
+      value =>
         currentValue = value
-        FunctionUtils.getFieldValue(value, fieldIndex)
-      })
-    })
-
-    aggregates.zip(aggregateDatas).zip(fields).foreach {
-      case ((aggregator, aggregateData), fieldIndex) =>
-        aggregator.aggregate(aggregateData)
-        FunctionUtils.putFieldValue(currentValue, fieldIndex, aggregator.getAggregated())
+        aggregateAndField.foreach {
+          case (aggregate, field) =>
+            aggregate.aggregate(FunctionUtils.getFieldValue(value,field))
+        }
     }
 
+    // reuse the latest value, and set all the aggregated value.
+    aggregateAndField.foreach {
+      case (aggregate, field) =>
+        FunctionUtils.putFieldValue(currentValue, field, aggregate.getAggregated())
+    }
+    
     out.collect(currentValue)
   }
 }

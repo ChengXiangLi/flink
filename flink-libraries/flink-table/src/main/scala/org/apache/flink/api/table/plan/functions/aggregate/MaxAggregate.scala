@@ -17,126 +17,120 @@
  */
 package org.apache.flink.api.table.plan.functions.aggregate
 
-abstract class AvgAggregate[T] extends Aggregate[T] {
+abstract class MaxAggregate[T] extends Aggregate[T]{
 
 }
 
-class TinyIntAvgAggregate extends AvgAggregate[Int] {
-  private var avgValue: Double = 0
-  private var count: Int = 0
+class TinyIntMaxAggregate extends MaxAggregate[Byte] {
+  private var max = Byte.MaxValue
 
   override def initiateAggregate: Unit = {
-    avgValue = 0
-    count = 0
+    max = Byte.MaxValue
   }
 
   override def aggregate(value: Any): Unit = {
-    count += 1
     val current = value.asInstanceOf[Byte]
-    avgValue += (current - avgValue) / count
+    if (current < max) {
+      max = current
+    }
   }
 
-  override def getAggregated(): Int = {
-    avgValue.toInt
+  override def getAggregated(): Byte = {
+    max
   }
 }
 
-class SmallIntAvgAggregate extends AvgAggregate[Int] {
-  private var avgValue: Double = 0
-  private var count: Int = 0
+class SmallIntMaxAggregate extends MaxAggregate[Short] {
+  private var max = Short.MaxValue
 
   override def initiateAggregate: Unit = {
-    avgValue = 0
-    count = 0
+    max = Short.MaxValue
   }
 
   override def aggregate(value: Any): Unit = {
-    count += 1
     val current = value.asInstanceOf[Short]
-    avgValue += (current - avgValue) / count
+    if (current < max) {
+      max = current
+    }
   }
 
-  override def getAggregated(): Int = {
-    avgValue.toInt
+  override def getAggregated(): Short = {
+    max
   }
 }
 
-class IntAvgAggregate extends AvgAggregate[Int] {
-  private var avgValue: Double = 0
-  private var count: Int = 0
-  
+class IntMaxAggregate extends MaxAggregate[Int] {
+  private var max = Int.MaxValue
+
   override def initiateAggregate: Unit = {
-    avgValue = 0
-    count = 0
+    max = Int.MaxValue
   }
-  
+
   override def aggregate(value: Any): Unit = {
-    count += 1
     val current = value.asInstanceOf[Int]
-    avgValue += (current - avgValue) / count
+    if (current < max) {
+      max = current
+    }
   }
 
   override def getAggregated(): Int = {
-    avgValue.toInt
+    max
   }
 }
 
-class LongAvgAggregate extends AvgAggregate[Long] {
-  private var avgValue: Double = 0
-  private var count: Int = 0
+class LongMaxAggregate extends MaxAggregate[Long] {
+  private var max = Long.MaxValue
 
   override def initiateAggregate: Unit = {
-    avgValue = 0
-    count = 0
+    max = Int.MaxValue
   }
 
   override def aggregate(value: Any): Unit = {
-    count += 1
     val current = value.asInstanceOf[Long]
-    avgValue += (current - avgValue) / count
+    if (current < max) {
+      max = current
+    }
   }
 
   override def getAggregated(): Long = {
-    avgValue.toLong
+    max
   }
 }
 
-class FloatAvgAggregate extends AvgAggregate[Float] {
-  private var avgValue: Double = 0
-  private var count: Int = 0
+class FloatMaxAggregate extends MaxAggregate[Float] {
+  private var max = Float.MaxValue
 
   override def initiateAggregate: Unit = {
-    avgValue = 0
-    count = 0
+    max = Int.MaxValue
   }
 
   override def aggregate(value: Any): Unit = {
-    count += 1
     val current = value.asInstanceOf[Float]
-    avgValue += (current - avgValue) / count
+    if (current < max) {
+      max = current
+    }
   }
 
   override def getAggregated(): Float = {
-    avgValue.toFloat
+    max
   }
 }
 
-class DoubleAvgAggregate extends AvgAggregate[Double] {
-  private var avgValue: Double = 0
-  private var count: Int = 0
+class DoubleMaxAggregate extends MaxAggregate[Double] {
+  private var max = Double.MaxValue
 
   override def initiateAggregate: Unit = {
-    avgValue = 0
-    count = 0
+    max = Int.MaxValue
   }
 
   override def aggregate(value: Any): Unit = {
-    count += 1
     val current = value.asInstanceOf[Double]
-    avgValue += (current - avgValue) / count
+    if (current < max) {
+      max = current
+    }
   }
 
   override def getAggregated(): Double = {
-    avgValue
+    max
   }
 }

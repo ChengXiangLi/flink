@@ -17,8 +17,13 @@
  */
 package org.apache.flink.api.table.plan.functions.aggregate
 
+import java.util
+
 import org.apache.calcite.rel.core.AggregateCall
-import org.apache.calcite.sql.fun.{SqlAvgAggFunction, SqlSumAggFunction}
+import org.apache.calcite.sql.SqlAggFunction
+import org.apache.calcite.sql.`type`.SqlTypeName
+import org.apache.calcite.sql.`type`.SqlTypeName._
+import org.apache.calcite.sql.fun._
 import org.apache.flink.api.common.functions.RichGroupReduceFunction
 import org.apache.flink.api.table.plan.OptimizeException
 import org.apache.flink.api.table.plan.functions.AggregateFunction
@@ -32,38 +37,95 @@ object AggregateFactory {
     val aggregates = new Array[Aggregate[_ <: Any]](aggregateCalls.size)
     aggregateCalls.zipWithIndex.map { case (aggregateCall, index) =>
       val sqlType = aggregateCall.getType
+      val argList: util.List[Integer] = aggregateCall.getArgList
       // currently assume only aggregate on singleton field.
-      val fieldIndex = aggregateCall.getArgList.get(0);
-      fieldIndexes(index) = fieldIndex
+      if (argList.isEmpty) {
+        if (aggregateCall.getAggregation.isInstanceOf[SqlCountAggFunction]) {
+          fieldIndexes(index) = 0
+        } else {
+          throw new OptimizeException("Aggregate fields should not be empty.")
+        }
+      } else {
+        fieldIndexes(index) = argList.get(0);
+      }
       aggregateCall.getAggregation match {
-        case sqlAggFunction: SqlSumAggFunction => {
-          sqlType.getSqlTypeName.getName match {
-            case "INTEGER" =>
+        case _: SqlSumAggFunction | _: SqlSumEmptyIsZeroAggFunction => {
+          sqlType.getSqlTypeName match {
+            case TINYINT =>
+              aggregates(index) = new TinyIntSumAggregate
+            case SMALLINT =>
+              aggregates(index) = new SmallIntSumAggregate
+            case INTEGER =>
               aggregates(index) = new IntSumAggregate
-            case "BIGINT" =>
+            case BIGINT =>
               aggregates(index) = new LongSumAggregate
-            case "FLOAT" =>
+            case FLOAT =>
               aggregates(index) = new FloatSumAggregate
-            case "DOUBLE" =>
+            case DOUBLE =>
               aggregates(index) = new DoubleSumAggregate
-            case sqlType: String =>
+            case sqlType: SqlTypeName =>
               throw new OptimizeException("Sum aggregate does no support type:" + sqlType)
           }
         }
-        case sqlAvgFunction: SqlAvgAggFunction => {
-          sqlType.getSqlTypeName.getName match {
-            case "INTEGER" =>
+        case _: SqlAvgAggFunction => {
+          sqlType.getSqlTypeName match {
+            case TINYINT =>
+              aggregates(index) = new TinyIntAvgAggregate
+            case SMALLINT =>
+              aggregates(index) = new SmallIntAvgAggregate
+            case INTEGER =>
               aggregates(index) = new IntAvgAggregate
-            case "BIGINT" =>
+            case BIGINT =>
               aggregates(index) = new LongAvgAggregate
-            case "FLOAT" =>
+            case FLOAT =>
               aggregates(index) = new FloatAvgAggregate
-            case "DOUBLE" =>
+            case DOUBLE =>
               aggregates(index) = new DoubleAvgAggregate
-            case sqlType: String => 
+            case sqlType: SqlTypeName => 
               throw new OptimizeException("Avg aggregate does no support type:" + sqlType)  
           }
-        }  
+        }
+        case sqlMinMaxFunction: SqlMinMaxAggFunction => {
+          if (sqlMinMaxFunction.isMin) {
+            sqlType.getSqlTypeName match {
+              case TINYINT =>
+                aggregates(index) = new TinyIntMinAggregate
+              case SMALLINT =>
+                aggregates(index) = new SmallIntMinAggregate
+              case INTEGER =>
+                aggregates(index) = new IntMinAggregate
+              case BIGINT =>
+                aggregates(index) = new LongMinAggregate
+              case FLOAT =>
+                aggregates(index) = new FloatMinAggregate
+              case DOUBLE =>
+                aggregates(index) = new DoubleMinAggregate
+              case sqlType: SqlTypeName =>
+                throw new OptimizeException("Avg aggregate does no support type:" + sqlType)
+            }
+          } else {
+            sqlType.getSqlTypeName match {
+              case TINYINT =>
+                aggregates(index) = new TinyIntMaxAggregate
+              case SMALLINT =>
+                aggregates(index) = new SmallIntMaxAggregate
+              case INTEGER =>
+                aggregates(index) = new IntMaxAggregate
+              case BIGINT =>
+                aggregates(index) = new LongMaxAggregate
+              case FLOAT =>
+                aggregates(index) = new FloatMaxAggregate
+              case DOUBLE =>
+                aggregates(index) = new DoubleMaxAggregate
+              case sqlType: SqlTypeName =>
+                throw new OptimizeException("Avg aggregate does no support type:" + sqlType)
+            }
+          }
+        }
+        case _: SqlCountAggFunction =>
+          aggregates(index) = new CountAggregate
+        case unSupported: SqlAggFunction => 
+          throw new OptimizeException("unsupported Function: " + unSupported.getName)  
       }
     }
 

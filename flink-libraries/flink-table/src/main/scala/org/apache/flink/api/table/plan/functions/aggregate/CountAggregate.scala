@@ -17,8 +17,18 @@
  */
 package org.apache.flink.api.table.plan.functions.aggregate
 
-trait Aggregate[T] {
-  def initiateAggregate
-  def aggregate(value: Any)
-  def getAggregated(): T
+class CountAggregate extends Aggregate[Long] {
+  private var count: Long = 0L
+  
+  override def initiateAggregate: Unit = {
+    count = 0
+  }
+
+  override def aggregate(value: Any): Unit = {
+    count += 1
+  }
+
+  override def getAggregated(): Long = {
+    count
+  }
 }

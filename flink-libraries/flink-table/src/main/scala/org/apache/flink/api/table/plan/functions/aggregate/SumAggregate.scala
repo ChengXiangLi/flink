@@ -21,9 +21,44 @@ abstract class SumAggregate[T] extends Aggregate[T]{
 
 }
 
+class TinyIntSumAggregate extends SumAggregate[Int] {
+
+  private var sumValue: Int = 0
+
+  override def initiateAggregate: Unit = {
+    sumValue = 0
+  }
+
+
+  override def getAggregated(): Int = {
+    sumValue
+  }
+
+  override def aggregate(value: Any): Unit = {
+    sumValue += value.asInstanceOf[Byte]
+  }
+}
+
+class SmallIntSumAggregate extends SumAggregate[Int] {
+
+  private var sumValue: Int = 0
+
+  override def initiateAggregate: Unit = {
+    sumValue = 0
+  }
+
+  override def getAggregated(): Int = {
+    sumValue
+  }
+
+  override def aggregate(value: Any): Unit = {
+    sumValue += value.asInstanceOf[Short]
+  }
+}
+
 class IntSumAggregate extends SumAggregate[Int] {
   
-  private var sumValue = 0
+  private var sumValue: Int = 0
   
   override def initiateAggregate: Unit = {
     sumValue = 0
@@ -34,21 +69,21 @@ class IntSumAggregate extends SumAggregate[Int] {
     sumValue
   }
 
-  override def aggregate(value: Iterable[Any]): Unit = {
-    sumValue = value.asInstanceOf[Iterable[Int]].sum
+  override def aggregate(value: Any): Unit = {
+    sumValue += value.asInstanceOf[Int]
   }
 }
 
 class LongSumAggregate extends SumAggregate[Long] {
 
-  private var sumValue = 0L
+  private var sumValue: Long = 0L
 
   override def initiateAggregate: Unit = {
     sumValue = 0
   }
 
-  override def aggregate(value: Iterable[Any]): Unit = {
-    sumValue = value.asInstanceOf[Iterable[Long]].sum
+  override def aggregate(value: Any): Unit = {
+    sumValue += value.asInstanceOf[Long]
   }
 
   override def getAggregated(): Long = {
@@ -63,8 +98,8 @@ class FloatSumAggregate extends SumAggregate[Float] {
     sumValue = 0
   }
 
-  override def aggregate(value: Iterable[Any]): Unit = {
-    sumValue = value.asInstanceOf[Iterable[Float]].sum
+  override def aggregate(value: Any): Unit = {
+    sumValue += value.asInstanceOf[Float]
   }
 
   override def getAggregated(): Float = {
@@ -79,8 +114,8 @@ class DoubleSumAggregate extends SumAggregate[Double] {
     sumValue = 0
   }
 
-  override def aggregate(value: Iterable[Any]): Unit = {
-    sumValue = value.asInstanceOf[Iterable[Double]].sum
+  override def aggregate(value: Any): Unit = {
+    sumValue += value.asInstanceOf[Double]
   }
 
   override def getAggregated(): Double = {
