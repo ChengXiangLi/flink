@@ -21,7 +21,7 @@ package org.apache.flink.api.table.plan.rules.dataset
 import org.apache.calcite.plan.{RelOptRule, RelTraitSet}
 import org.apache.calcite.rel.RelNode
 import org.apache.calcite.rel.convert.ConverterRule
-import org.apache.flink.api.table.plan.nodes.dataset.{DataSetConvention, DataSetFlatMap}
+import org.apache.flink.api.table.plan.nodes.dataset.{DataSetConvention, DataSetMapPartition}
 import org.apache.flink.api.table.plan.nodes.logical.{FlinkCalc, FlinkConvention}
 
 class DataSetCalcRule
@@ -37,7 +37,7 @@ class DataSetCalcRule
     val traitSet: RelTraitSet = rel.getTraitSet.replace(DataSetConvention.INSTANCE)
     val convInput: RelNode = RelOptRule.convert(calc.getInput, DataSetConvention.INSTANCE)
 
-    new DataSetFlatMap(
+    new DataSetMapPartition(
       rel.getCluster,
       traitSet,
       convInput,

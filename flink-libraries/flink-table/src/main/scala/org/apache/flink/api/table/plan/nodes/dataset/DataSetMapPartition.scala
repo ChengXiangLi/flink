@@ -21,28 +21,28 @@ package org.apache.flink.api.table.plan.nodes.dataset
 import org.apache.calcite.plan.{RelOptCost, RelOptPlanner, RelTraitSet, RelOptCluster}
 import org.apache.calcite.rel.`type`.RelDataType
 import org.apache.calcite.rel.{RelWriter, RelNode, SingleRel}
-import org.apache.flink.api.common.functions.FlatMapFunction
+import org.apache.flink.api.common.functions.{MapPartitionFunction, FlatMapFunction}
 import org.apache.flink.api.java.DataSet
 import org.apache.flink.api.table.Row
 
 /**
-  * Flink RelNode which matches along with FlatMapOperator.
+  * Flink RelNode which matches along with MapPartitionOperator.
   *
   */
-class DataSetFlatMap(
+class DataSetMapPartition(
                          cluster: RelOptCluster,
                          traitSet: RelTraitSet,
                          input: RelNode,
                          rowType: RelDataType,
                          opName: String,
-                         func: FlatMapFunction[Row, Row])
+                         func: MapPartitionFunction[Any, Any])
   extends SingleRel(cluster, traitSet, input)
   with DataSetRel {
 
   override def deriveRowType() = rowType
 
   override def copy(traitSet: RelTraitSet, inputs: java.util.List[RelNode]): RelNode = {
-    new DataSetFlatMap(
+    new DataSetMapPartition(
       cluster,
       traitSet,
       inputs.get(0),

@@ -41,7 +41,7 @@ class DataSetJoin(
                  joinKeysRight: Array[Int],
                  joinType: JoinType,
                  joinHint: JoinHint,
-                 func: JoinFunction[Row, Row, Row])
+                 func: JoinFunction[Any, Any, Any])
   extends BiRel(cluster, traitSet, left, right)
   with DataSetRel {
 
